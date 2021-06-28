@@ -16,7 +16,7 @@ from data.DigestSegBag import DigestSegIns
 from torch.utils.data import DataLoader
 import torch.nn as nn
 import torch.nn.functional as F
-
+from PIL import ImageFilter
 import random
 
 def adjust_learning_rate(optimizer, epoch, args):
@@ -236,3 +236,14 @@ def accuracy(output, target, topk=(1,)):
             correct_k = correct[:k].view(-1).float().sum(0, keepdim=True)
             res.append(correct_k.mul_(100.0 / batch_size))
         return res
+
+class GaussianBlur(object):
+    """Gaussian blur augmentation in SimCLR https://arxiv.org/abs/2002.05709"""
+
+    def __init__(self, sigma=[.1, 2.]):
+        self.sigma = sigma
+
+    def __call__(self, x):
+        sigma = random.uniform(self.sigma[0], self.sigma[1])
+        x = x.filter(ImageFilter.GaussianBlur(radius=sigma))
+        return x

@@ -8,7 +8,7 @@ from data.DigestSeg import DigestSeg
 from data.DigestSegBag import DigestSegBag, DigestSegBagRatio
 from runners.BaseTester import BaseTester
 from runners.BaseTrainer import BaseTrainer
-from models.BaseClsNet import BaseClsNet, CausalPredictor
+from models.BaseClsNet import BaseClsNet, CausalPredictor, CausalConClsNet
 from models.AttentionClsNet import AttentionClsNet, GAttentionClsNet
 from models.backbones.ResNet import ResNet18, ResNet34, ResNet50
 from models.RNN import rnn_single as RNN
@@ -24,9 +24,6 @@ import numpy as np
 import torch.optim as optim
 import torch
 from utils.utility import init_all_dl, init_pn_dl
-from utils.utility import GaussianBlur
-# torch.multiprocessing.set_sharing_strategy('file_system')
-
 import redis
 import random
 from utils.utility import RandomApply
@@ -35,57 +32,27 @@ from utils.utility import RandomApply
 class Config(object):
     ## device config
     device = torch.device("cuda")
-
     ## logging/loading configs
     log_dir = ""
     resume = -1
     save_interval = 1
-
     ## dataset configs
     data_root = ""
     normalize = transforms.Normalize(mean=[0.485, 0.456, 0.406],
                                      std=[0.229, 0.224, 0.225])
-    # train_transform = transforms.Compose([
-    #     transforms.RandomResizedCrop(448, scale=(0.2, 1.)),
-    #         transforms.RandomApply([
-    #             transforms.ColorJitter(0.4, 0.4, 0.4, 0.1)  # not strengthened
-    #         ], p=0.8),
-    #         transforms.RandomGrayscale(p=0.2),
-    #         transforms.RandomApply([GaussianBlur([.1, 2.])], p=0.5),
-    #         transforms.RandomHorizontalFlip(),
-    #         transforms.ToTensor(),
-    #         normalize])
     train_transform = transforms.Compose([
-        transforms.RandomResizedCrop((448, 448)),
-        transforms.RandomHorizontalFlip(),
-        # transforms.RandomVerticalFlip(0.5),
-        # transforms.ColorJitter(0.25, 0.25, 0.25, 0.25),
+        transforms.RandomResizedCrop((448, 448), scale=(0.2, 1.0)),
+        transforms.RandomHorizontalFlip(0.5),
+        transforms.RandomVerticalFlip(0.5),
+        transforms.ColorJitter(0.25, 0.25, 0.25, 0.25),
         transforms.ToTensor(),
         normalize
     ])
     test_transform = transforms.Compose([
-        transforms.Resize((512)),
-        transforms.CenterCrop(448),
+        transforms.Resize((448, 448)),
         transforms.ToTensor(),
         normalize
     ])
-    ########
-    # ssl_transform = transforms.Compose([
-    #     RandomApply(
-    #         transforms.ColorJitter(0.8, 0.8, 0.8, 0.2),
-    #         p=0.3
-    #     ),
-    #     transforms.RandomGrayscale(p=0.2),
-    #     transforms.RandomHorizontalFlip(),
-    #     RandomApply(
-    #         transforms.GaussianBlur((3, 3), (1.0, 2.0)),
-    #         p=0.2
-    #     ),
-    #     transforms.RandomResizedCrop((448, 448), scale=(0.2, 1.0)),
-    #     transforms.ToTensor(),
-    #     normalize
-    #     ])
-    #############
     train_transform_C = transforms.Compose([
         transforms.RandomResizedCrop((224, 224), scale=(0.2, 1.0)),
         transforms.RandomHorizontalFlip(0.5),
@@ -263,37 +230,40 @@ class Config(object):
 
     def build_model(self):
         ## 2. build model
-        self.old_backbone = self.build_backbone(self.backbone).to(self.device)
+        # self.old_backbone = self.build_backbone(self.backbone).to(self.device)
+        self.old_backbone = None
         self.backbone = self.build_backbone(self.backbone).to(self.device)
+        self.clsnet_base = BaseClsNet(self.backbone, 1).to(self.device)
         self.dic = torch.tensor(np.load(os.path.join(self.load_path, 'conf.npy')), dtype=torch.float)
-        # self.prior = torch.tensor(np.load(os.path.join(self.load_path, 'prior.npy')), dtype=torch.float)
-        self.clsnet = CausalPredictor(self.old_backbone, self.dic, 2).to(self.device)
+        self.clsnet_causal = CausalPredictor(self.backbone, self.dic, 1).to(self.device)
 
     def build_criterion(self):
-        # self.pos_weight = (len(self.trainset.instance_real_labels) /
-        #                    (torch.stack(self.trainset.instance_real_labels).sum())
-        #                    ) ** 0.5
-        # self.criterion = BCEWithLogitsLoss(pos_weight=self.pos_weight.to(self.device))
-        # self.criterion = BCEWithLogitsLoss()
-        self.criterion = nn.CrossEntropyLoss()
+        # same loss should be instance twice?
+        self.criterion = BCEWithLogitsLoss()
+        self.bce = BCEWithLogitsLoss()
 
     def build_optimizer(self):
         ## 3. build optimizer
+        # question: Not put backbone's parameters in optimizer & with torch.no_grad():backbone(input) 
+        #                   = (param.requires_grad=False ?)
+        # question2: backbone.eval()? (Try both maybe)
         self.optimizer = optim.Adam([
             {'params': self.backbone.parameters()},
-            {'params': self.clsnet.parameters(), 'lr': self.cls_lr}
+            {'params': self.clsnet_base.parameters(), 'lr': self.cls_lr},
+            {'params': self.clsnet_causal.parameters(), 'lr': self.cls_lr}
         ], lr=self.backbone_lr, weight_decay=self.weight_decay)
 
     def load_model_and_optimizer(self):
         ## 5. load and build trainer
         self.backbone, self.clsnet, self.optimizer = self.logger.load(self.backbone,
-                                                                      self.clsnet,
+                                                                      self.clsnet_base,
                                                                       self.optimizer,
                                                                       self.resume)
-        # self.backbone = self.logger.load_backbone(self.backbone, self.load, self.load_path)
-        # # print(self.load, self.load_path)
-        self.old_backbone = self.logger.load_backbone(self.old_backbone, self.load, self.load_path)
+        self.clsnet_causal = self.logger.load_backbone(self.clsnet_causal,self.resume)
+        # self.backbone = self.logger.load_backbone(self.backbone, self.load, self.load_path_causal)
+        # self.old_backbone = self.logger.load_backbone(self.old_backbone, self.load, self.load_path)
         # self.clsnet = CausalPredictor(self.old_backbone, self.dic, 1).to(self.device)
+        # return 0
 
     def build_memoryBank(self):
         # 6. Build & load Memory bank
@@ -383,12 +353,12 @@ class Config(object):
 
     def build_runner(self):
         # 7. Buil trainer and tester
-        self.trainer = BaseTrainer(self.backbone, self.clsnet, self.optimizer, self.lrsch, self.criterion,
+        self.trainer = BaseTrainer(self.backbone, self.clsnet_base, self.optimizer, self.lrsch, self.criterion,
                                    self.train_loader, self.trainset, self.train_loader_list, self.val_loader,
                                    self.train_mmbank, self.save_interval,
-                                   self.logger, self.config, self.old_backbone)
-        self.tester = BaseTester(self.backbone, self.clsnet, self.test_loader, self.testset, self.test_loader_list,
-                                 self.test_mmbank, self.logger, self.old_backbone)
+                                   self.logger, self.config, self.old_backbone, self.clsnet_causal)
+        self.tester = BaseTester(self.backbone, self.clsnet_base, self.test_loader, self.testset, self.test_loader_list,
+                                 self.test_mmbank, self.logger, self.old_backbone, self.clsnet_causal)
 
     @classmethod
     def parse_task(self, task_str):
@@ -406,4 +376,3 @@ class Config(object):
         else:
             return ResNet50(self.pretrained)
 
-    

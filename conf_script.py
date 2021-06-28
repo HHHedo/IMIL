@@ -32,10 +32,10 @@ def parse_args():
                         choices=["DigestSegEMCAV2", "DigestSeg", 'DigestSegPB',
                                  'DigestSegTOPK', 'DigestSegFull', 'DigestSegRCE'])
     parser.add_argument("--log_dir", type=str,
-                        default="/home/ltc/1T/HisMIL/experiments/Full/2020_12_26/f4",
+                        default="/remote-home/ltc/HisMIL/experiments/BagDis/f1",
                         help="The experiment log directory")
     parser.add_argument("--data_root", "-d", type=str,
-                        default="/home/ltc/Phase2/5_folder/4",
+                        default="/remote-home/share/DATA/HISMIL/5_folder/1",
                         help="root directory of data used")
     parser.add_argument("--resume", type=int, default=-1, help="Resume epoch")
     parser.add_argument("--bs", type=int, default=256, help="Resume epoch")
@@ -78,9 +78,6 @@ def parse_args():
     args = parser.parse_args()
     return args
 
-
-##epoch #############################ratio
-### log_dir and data_root
 
 def eval_(self, gs, trainset):
     # self.backbone = self.logger.load_backbone_fromold(self.backbone, global_step=gs)

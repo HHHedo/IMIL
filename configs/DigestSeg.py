@@ -28,6 +28,7 @@ torch.multiprocessing.set_sharing_strategy('file_system')
 import redis
 import random
 from utils.utility import RandomApply
+from utils.utility import GaussianBlur
 class Config(object):
     ## device config
     device = torch.device("cuda")
@@ -41,19 +42,43 @@ class Config(object):
     data_root = ""
     normalize = transforms.Normalize(mean=[0.485, 0.456, 0.406],
                                      std=[0.229, 0.224, 0.225])
+    # train_transform = transforms.Compose([
+    #     transforms.RandomResizedCrop(448, scale=(0.2, 1.)),
+    #         transforms.RandomApply([
+    #             transforms.ColorJitter(0.4, 0.4, 0.4, 0.1)  # not strengthened
+    #         ], p=0.8),
+    #         transforms.RandomGrayscale(p=0.2),
+    #         transforms.RandomApply([GaussianBlur([.1, 2.])], p=0.5),
+    #         transforms.RandomHorizontalFlip(),
+    #         transforms.ToTensor(),
+    #         normalize])
     train_transform = transforms.Compose([
-        transforms.RandomResizedCrop((448, 448), scale=(0.2, 1.0)),
-        transforms.RandomHorizontalFlip(0.5),
-        transforms.RandomVerticalFlip(0.5),
-        transforms.ColorJitter(0.25, 0.25, 0.25, 0.25),
+        transforms.RandomResizedCrop((448, 448)),
+        transforms.RandomHorizontalFlip(),
+        # transforms.RandomVerticalFlip(0.5),
+        # transforms.ColorJitter(0.25, 0.25, 0.25, 0.25),
         transforms.ToTensor(),
         normalize
     ])
     test_transform = transforms.Compose([
-        transforms.Resize((448, 448)),
+        transforms.Resize((512)),
+        transforms.CenterCrop(448),
         transforms.ToTensor(),
         normalize
     ])
+    # train_transform = transforms.Compose([
+    #     transforms.RandomResizedCrop((448, 448), scale=(0.2, 1.0)),
+    #     transforms.RandomHorizontalFlip(0.5),
+    #     transforms.RandomVerticalFlip(0.5),
+    #     transforms.ColorJitter(0.25, 0.25, 0.25, 0.25),
+    #     transforms.ToTensor(),
+    #     normalize
+    # ])
+    # test_transform = transforms.Compose([
+    #     transforms.Resize((448, 448)),
+    #     transforms.ToTensor(),
+    #     normalize
+    # ])
     ########
     # ssl_transform = transforms.Compose([
     #     RandomApply(
@@ -84,7 +109,7 @@ class Config(object):
         transforms.ToTensor(),
         normalize
     ])
-    batch_size = 64 # 64 for training, 256 for figure generation
+    batch_size = 32 # 64 for training, 256 for figure generation
 
     ## training configs
     backbone = "res18"
@@ -246,6 +271,8 @@ class Config(object):
 
     def build_model(self):
         ## 2. build model
+        self.old_backbone = self.build_backbone(self.backbone).to(self.device)
+        self.old_clsnet = BaseClsNet(self.old_backbone, 2).to(self.device)
         self.backbone = self.build_backbone(self.backbone).to(self.device)
         if self.config == 'DigestSegAMIL':
             self.clsnet = AttentionClsNet(self.backbone, 1, 128, 1).to(self.device)
@@ -255,16 +282,17 @@ class Config(object):
         # elif self.config == 'DigestSegAMIL':
         #     self.clsnet = AttentionClsNet(self.backbone, 1, 128, 1).to(self.device)
         else:  # instance/max/mean pooling
-            self.clsnet = BaseClsNet(self.backbone, 1).to(self.device)
+            self.clsnet = BaseClsNet(self.backbone, 2).to(self.device)
 
     def build_criterion(self):
         ## 4. build loss function
         if self.config == 'DigestSegFull':
             print("-" * 60)
-            self.pos_weight = (len(self.trainset.instance_real_labels) /
-                               (torch.stack(self.trainset.instance_real_labels).sum())
-                               ) ** 0.5
-            self.criterion = BCEWithLogitsLoss(pos_weight=self.pos_weight.to(self.device))
+            # self.pos_weight = (len(self.trainset.instance_real_labels) /
+            #                    (torch.stack(self.trainset.instance_real_labels).sum())
+            #                    ) ** 0.5
+            # self.criterion = BCEWithLogitsLoss(pos_weight=self.pos_weight.to(self.device))
+            self.criterion = nn.CrossEntropyLoss()
         elif self.config == 'DigestSegTOPK':
             self.criterion = {'CE': BCEWithLogitsLoss(),
                               'Center': CenterLoss(self.trainset.bag_num, 512)
@@ -299,7 +327,9 @@ class Config(object):
         else:
             self.optimizer = optim.Adam([
                 {'params': self.backbone.parameters()},
-                {'params': self.clsnet.parameters()}
+                {'params': self.clsnet.parameters()},
+                {'params': self.old_backbone.parameters(), 'lr': self.lr*0.05},
+                {'params': self.old_clsnet.parameters(), 'lr': self.lr*0.05}
             ], lr=self.lr, weight_decay=self.weight_decay)
 
     def load_model_and_optimizer(self):
@@ -311,14 +341,16 @@ class Config(object):
                                                                       self.resume)
         # only load BB and fixed
         if self.load > 0:
-            if self.config == 'DigestSegAMIL':
-                self.backbone = self.logger.load_BB_and_freeze(self.backbone, self.load, self.load_path)
-            # only load BB and CLS, then fixed
-            elif self.config == 'DigestSegRNN':
-                self.backbone = self.logger.load_BB_and_freeze(self.backbone, self.load, self.load_path)
-                self.clsnet['cls'] = self.logger.load_clsnet_and_freeze(self.clsnet['cls'], self.load, self.load_path)
-            elif  self.config == 'DigestSegMaxPool' or self.config == 'DigestSegMeanPool':
-                self.backbone = self.logger.load_BB_and_freeze(self.backbone, self.load, self.load_path)
+            self.old_backbone = self.logger.load_backbone(self.old_backbone, self.load, self.load_path)
+            self.old_clsnet = self.logger.load_clsnet(self.old_clsnet, self.load, self.load_path)
+            # if self.config == 'DigestSegAMIL':
+            #     self.backbone = self.logger.load_BB_and_freeze(self.backbone, self.load, self.load_path)
+            # # only load BB and CLS, then fixed
+            # elif self.config == 'DigestSegRNN':
+            #     self.backbone = self.logger.load_BB_and_freeze(self.backbone, self.load, self.load_path)
+            #     self.clsnet['cls'] = self.logger.load_clsnet_and_freeze(self.clsnet['cls'], self.load, self.load_path)
+            # elif  self.config == 'DigestSegMaxPool' or self.config == 'DigestSegMeanPool':
+            #     self.backbone = self.logger.load_BB_and_freeze(self.backbone, self.load, self.load_path)
                 # self.clsnet = self.logger.load_clsnet_and_freeze(self.clsnet, self.load, self.load_path, notFreeze=True)
 
 
@@ -358,7 +390,9 @@ class Config(object):
             self.test_mmbank.load(os.path.join(self.logger.logdir, "test_mmbank"), self.resume)
 
         elif self.config == 'DigestSegPB' or self.config == 'DigestSegEMCA' or self.config == 'DigestSegTOPK' \
-                or self.config == 'DigestSegEMCAV2':
+                or self.config == 'DigestSegEMCAV2'\
+                or self.config == 'DigestSegEMnocahalf' or self.config == 'DigestSegEMnocamean'\
+                or self.config == 'DigestSegGT' or self.config == 'DigestSegGM':
             if self.noisy:
                 # noisy = torch.randn(self.trainset.bag_num)
                 pos_num = (np.array(self.trainset.bag_pos_ratios)>0).sum()
@@ -412,7 +446,7 @@ class Config(object):
         self.trainer = BaseTrainer(self.backbone, self.clsnet, self.optimizer, self.lrsch, self.criterion,
                                    self.train_loader, self.trainset, self.train_loader_list, self.val_loader,
                                    self.train_mmbank, self.save_interval,
-                                   self.logger, self.config)
+                                   self.logger, self.config, self.old_backbone, self.old_clsnet)
         self.tester = BaseTester(self.backbone, self.clsnet, self.test_loader, self.testset, self.test_loader_list,
                                  self.test_mmbank, self.logger)
     @classmethod

@@ -37,7 +37,7 @@ class BaseTester(object):
     
     """
     def __init__(self, backbone, clsnet, test_loader, test_data, loader_list,
-                 memory_bank, logger=None, old_backbone=None, bs=64, device=torch.device("cuda")):
+                 memory_bank, logger=None, old_backbone=None,clsnet_causal=None, bs=64, device=torch.device("cuda")):
         self.backbone = backbone
         self.clsnet = clsnet
         self.test_data = test_data
@@ -47,6 +47,7 @@ class BaseTester(object):
         self.logger = logger
         if old_backbone is not None:
             self.old_backbone = old_backbone.eval()
+        self.clsnet_causal = clsnet_causal
         self.bs = bs
         self.device = device
 
@@ -54,9 +55,26 @@ class BaseTester(object):
 
         self.backbone.eval()
         self.clsnet.eval()
+        softmax = nn.Softmax(dim=1)
         with torch.no_grad():
             for batch_idx, (img, instance_label, bag_idx, inner_idx, _, _) in enumerate(tqdm(self.test_loader, ascii=True, ncols=60)):
-                instance_preds = self.clsnet(self.backbone(img.to(self.device)), bag_idx, inner_idx, self.old_backbone, img.to(self.device))
+                # instance_preds,_= self.clsnet(self.backbone(img.to(self.device)), bag_idx, inner_idx, self.old_backbone, img.to(self.device))
+                instance_preds = self.clsnet(self.backbone(img.to(self.device)))
+                self.memory_bank.update(bag_idx, inner_idx, softmax(instance_preds)[:,1])
+            self.logger.save_result(
+            "test_mmbank", self.memory_bank.state_dict())
+    
+    def causalconcat_full(self, bs):
+        self.backbone.eval()
+        self.clsnet.eval()
+        with torch.no_grad():
+            for batch_idx, (img, instance_label, bag_idx, inner_idx, _, _) in enumerate(tqdm(self.test_loader, ascii=True, ncols=60)):
+                # instance_preds = self.clsnet(self.backbone(img.to(self.device)), bag_idx, inner_idx, self.old_backbone, img.to(self.device))
+                # original_feature = self.old_backbone(img.to(self.device))
+                causal_feature = self.backbone(img.to(self.device))
+                feature = causal_feature
+                # feature = torch.cat((original_feature, causal_feature), 1)
+                instance_preds = self.clsnet(feature)
                 self.memory_bank.update(bag_idx, inner_idx, instance_preds.sigmoid())
             self.logger.save_result(
             "test_mmbank", self.memory_bank.state_dict())

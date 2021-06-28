@@ -25,7 +25,7 @@ import torch
 from utils.utility import init_all_dl, init_pn_dl
 # torch.multiprocessing.set_sharing_strategy('file_system')
 
-from scripts import redis_script
+# from scripts import redis_script
 import random
 import pickle
 from utils.utility import RandomApply
@@ -82,6 +82,7 @@ class Config(object):
     ssl = False
 
     def __init__(self, args):
+        print('init')
         self.update(args)
 
     def update(self, args):
@@ -144,27 +145,27 @@ class Config(object):
 
     def build_data(self):
         ## 1. build dataset & dataloader
-        import sys
-        import torch
-        from torch.utils.data import dataloader
-        from torch.multiprocessing import reductions
-        from multiprocessing.reduction import ForkingPickler
+        # import sys
+        # import torch
+        # from torch.utils.data import dataloader
+        # from torch.multiprocessing import reductions
+        # from multiprocessing.reduction import ForkingPickler
 
-        default_collate_func = dataloader.default_collate
+        # default_collate_func = dataloader.default_collate
 
-        def default_collate_override(batch):
-            dataloader._use_shared_memory = False
-            return default_collate_func(batch)
+        # def default_collate_override(batch):
+        #     dataloader._use_shared_memory = False
+        #     return default_collate_func(batch)
 
-        setattr(dataloader, 'default_collate', default_collate_override)
+        # setattr(dataloader, 'default_collate', default_collate_override)
 
-        for t in torch._storage_classes:
-            if sys.version_info[0] == 2:
-                if t in ForkingPickler.dispatch:
-                    del ForkingPickler.dispatch[t]
-            else:
-                if t in ForkingPickler._extra_reducers:
-                    del ForkingPickler._extra_reducers[t]
+        # for t in torch._storage_classes:
+        #     if sys.version_info[0] == 2:
+        #         if t in ForkingPickler.dispatch:
+        #             del ForkingPickler.dispatch[t]
+        #     else:
+        #         if t in ForkingPickler._extra_reducers:
+        #             del ForkingPickler._extra_reducers[t]
 
 
         train_root = os.path.join(self.data_root, "NCT-CRC-HE-100K")

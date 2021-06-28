@@ -44,52 +44,67 @@ class BaseClsNet(nn.Module):
 
         return x
 
+class CausalConClsNet(nn.Module):
+    '''
+    Basic classification network. With single classification head and single backbone.
+
+    '''
+    def __init__(self, backbone, num_classes=2):
+        super(CausalConClsNet, self).__init__()
+        self.classifier = nn.Linear(512, num_classes)
+
+
+    def forward(self, x):
+        x = self.classifier(x.view(x.shape[0],-1))
+        return x
 # , num_classes=2 ,  backbone.feat_dim
 # prior uniform dis; dic ;mb
 class CausalPredictor(nn.Module):
-    def __init__(self, backbone, dic, num_classes):
+    def __init__(self, backbone, dic, num_classes,T=0.07):
         super(CausalPredictor, self).__init__()
-
+        self.T = T
         num_classes = num_classes
         self.embedding_size = 512
         representation_size = backbone.feat_dim
 
-        self.causal_score = nn.Linear(2*representation_size, num_classes)
+        self.causal_score = nn.Linear(2*representation_size, num_classes, bias=False)
         self.cluster_score = nn.Linear(representation_size, 10)
         self.Wy = nn.Linear(representation_size, self.embedding_size)
         self.Wz = nn.Linear(representation_size, self.embedding_size)
-
+        
         nn.init.normal_(self.causal_score.weight, std=0.01)
-        nn.init.normal_(self.cluster_score.weight, std=0.01)
+        # nn.init.normal_(self.cluster_score.weight, std=0.01)
         nn.init.normal_(self.Wy.weight, std=0.02)
         nn.init.normal_(self.Wz.weight, std=0.02)
         # self.Wy.weight.data.copy_(torch.eye(representation_size))
         # self.Wz.weight.data.copy_(torch.eye(representation_size))
         nn.init.constant_(self.Wy.bias, 0)
         nn.init.constant_(self.Wz.bias, 0)
-        nn.init.constant_(self.causal_score.bias, 0)
-        nn.init.constant_(self.cluster_score.bias, 0)
+        # nn.init.constant_(self.causal_score.bias, 0)
+        # nn.init.constant_(self.cluster_score.bias, 0)
 
         self.feature_size = representation_size
+        self.register_buffer("dic", torch.randn(10, representation_size))
+        self.register_buffer("prior", torch.randn(self.dic.shape[0], 1))
+        print('originaldic', dic)
         self.dic = self.get_conf(dic)
+        print('confounder', self.dic)
+        print('WZ',self.Wz.weight)
         self.prior = torch.tensor(np.ones(self.dic.shape[0]) / (self.dic.shape[0]),
                                   dtype=torch.float)
-        self.dropout = nn.Dropout(p=0.5)
-        self.cos  = nn.CosineSimilarity(dim=1, eps=1e-6)
+        # self.dropout = nn.Dropout(p=0.5)
+        # self.cos  = nn.CosineSimilarity(dim=1, eps=1e-6)
         # self.old_backbone = backbone.eval()
         # self.prior = torch.tensor(np.ones(int(dic[:, -2:-1].max().item()+1))/(dic[:, -2:-1].max().item()+1), dtype=torch.float)
         # print(self.dic.shape, self.prior)
 
     def get_conf(self, dic):
-        
-        
-        # feature = dic[:, :-2]
-        # bag_num = dic[:, -2:-1].max()
-        # conf_list = [feature[(dic[:, -2:-1]==num).squeeze(1)].mean(axis=0) for num in range(int(bag_num+1))]
-        # return torch.stack(conf_list)
         print('clustering for confounder') 
         feature = dic[:, :-2].numpy().astype('float32')
         bag_num = dic[:, -2].max()
+        # conf_list = np.stack([feature[(dic[:, -2:-1]==num).squeeze(1)].mean(axis=0) for num in range(int(bag_num+1))])
+        # import pdb
+        # pdb.set_trace()
         ncentroids = 10
         niter = 20
         verbose = True
@@ -138,26 +153,68 @@ class CausalPredictor(nn.Module):
             z = torch.matmul(prior.unsqueeze(0), z_hat).squeeze(1)
         return z
 
-    def forward(self, x, bag_idx, inner_idx, old_backbone, imgs):
+    def forward(self, x, bag_idx, inner_idx, old_backbone, imgs, a=0,b=1):
+        # 1. query 2.task or supervision
         device = x.get_device()
         dic_z = self.dic.to(device)
         prior = self.prior.to(device)
 
        # 1. old backbone
-        # if old_backbone:
-        #     selected_f = old_backbone(imgs)
-        # else:
-        #     selected_f = self.select_feature(bag_idx, inner_idx)
-        # _, z = self.z_dic(selected_f, dic_z, prior)
-        # inter_x = torch.cat((x, z), 1)
+       # train with saved feature, inference with old backbone 
+        with torch.no_grad():
+            selected_f = old_backbone(imgs)
+        # selected_f = self.select_feature(bag_idx, inner_idx)
+        # selected_f = x
+        _, z, attention = self.z_dic(selected_f, dic_z, prior)
+        inter_x = torch.cat((x, z), 1)
+        # inter_x = x + z
+        if a==0:
+            causal_logits_list = self.causal_score(inter_x)
+        else:
+            TE = self.causal_score(inter_x)
+            x_none = torch.zeros_like(x).cuda()
+            NIE = self.causal_score(torch.cat((x_none, z), 1))
+            NDE = self.causal_score(torch.cat((x, x_none), 1))
+            TDE_a1 = self.causal_score(torch.cat((x, (1-0.1)*z), 1))
+            TDE_a2 = self.causal_score(torch.cat((x, (1-0.2)*z), 1))
+            TDE_a3 = self.causal_score(torch.cat((x, (1-0.3)*z), 1))
+            TDE_a4 = self.causal_score(torch.cat((x, (1-0.4)*z), 1))
+            TDE_a5 = self.causal_score(torch.cat((x, (1-0.5)*z), 1))
+            TDE_a6 = self.causal_score(torch.cat((x, (1-0.6)*z), 1))
+            TDE_a7 = self.causal_score(torch.cat((x, (1-0.7)*z), 1))
+            TDE_a8 = self.causal_score(torch.cat((x, (1-0.8)*z), 1))
+            TDE_a9 = self.causal_score(torch.cat((x, (1-0.9)*z), 1))
+           
+            # NIE = self.causal_score(z)
+            # NDE = self.causal_score(x)
+            # TDE_a1 = self.causal_score(x+(1-0.1)*z)
+            # TDE_a2 = self.causal_score(x+(1-0.2)*z)
+            # TDE_a3 = self.causal_score(x+(1-0.3)*z)
+            # TDE_a4 = self.causal_score(x+(1-0.4)*z)
+            # TDE_a5 = self.causal_score(x+(1-0.5)*z)
+            # TDE_a6 = self.causal_score(x+(1-0.6)*z)
+            # TDE_a7 = self.causal_score(x+(1-0.7)*z)
+            # TDE_a8 = self.causal_score(x+(1-0.8)*z)
+            # TDE_a9 = self.causal_score(x+(1-0.9)*z)
+            # print('x',(x[0]==0).sum(),x[0].mean(),x[0].std() )
+            # print('z',(z[0]==0).sum(),z[0].mean(), z[0].std())
+            # print(x,z)
+            return [TE, NIE, NDE, TDE_a1, TDE_a2, TDE_a3,TDE_a4,TDE_a5,TDE_a6,TDE_a7,TDE_a8,TDE_a9], attention
+        
 
-        # 2. own feature
-        inter_x, z = self.z_dic(x, dic_z, prior)
-        causal_logits_list = self.causal_score(inter_x)
+            # # 2. own feature
+            # # inter_x, z, attention = self.z_dic(x, dic_z, prior)
         # cluster_preds = self.cluster_score(z)
         # cluster_label = self.select_feature(bag_idx, inner_idx)
         # return causal_logits_list, cluster_preds, cluster_label
-        return causal_logits_list
+        
+        # causal_logits_list/=self.T
+        # with torch.no_grad():
+        #     x_none = torch.zeros_like(x).cuda()
+        #     inter_x_counter = torch.cat((x_none, z), 1)
+        #     TDE=self.causal_score(inter_x) - self.causal_score(inter_x_counter)
+        #     print('TDE Max:{:.2}, Min{:.2}, Mean{:.2}, Std:{:.2}'.format(TDE.max().item(),TDE.min().item(),TDE.mean().item(),TDE.std().item()))
+        return causal_logits_list, attention
 
 
     def z_dic(self, y, dic_z, prior):
@@ -168,8 +225,8 @@ class CausalPredictor(nn.Module):
         if length == 1:
             print('debug')
         # ##1.0 attention
-        attention = torch.mm(self.Wy(y), self.Wz(dic_z).t()) / (self.embedding_size ** 0.5)
-        # attention = torch.mm(nn.functional.normalize(self.Wy(y), dim=1), nn.functional.normalize(self.Wz(dic_z), dim=1).t()) 
+        # attention = torch.mm(self.Wy(y), self.Wz(dic_z).t()) / (self.embedding_size ** 0.5)
+        attention = torch.mm(nn.functional.normalize(self.Wy(y),p=1, dim=1), nn.functional.normalize(self.Wz(dic_z), p=1, dim=1).t()) 
         #[N*M] = [N*D]*[D*M] N:Batch size, D: feature dimension, M:number of confounder
         attention = F.softmax(attention, 1)
         
@@ -191,7 +248,7 @@ class CausalPredictor(nn.Module):
         # detect if encounter nan
         if torch.isnan(xz).sum():
             print(xz)
-        return xz, z
+        return xz, z, attention
 
     def select_feature(self, bag_idx, inner_idx):
         with torch.no_grad():

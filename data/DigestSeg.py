@@ -303,7 +303,7 @@ class DigestSeg(Dataset):
         self.tmp_instance_in_where = np.array(self.instance_in_where)[ins_idx_vec]
         self.tmp_instance_labels = np.array(self.instance_labels)[ins_idx_vec]
         self.tmp_instance_real_labels = np.array(self.instance_real_labels)[ins_idx_vec]
-        print('The Topk-K acc is {}'.format(self.tmp_instance_real_labels.sum() / self.tmp_instance_labels.sum()))
+        print('The Topk-K ACC of Pos is {}'.format(self.tmp_instance_real_labels.sum() / self.tmp_instance_labels.sum()))
 
     def __getitem__(self, idx):
         """

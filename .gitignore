@@ -11,3 +11,20 @@
 /testset.pickle
 /trainset.pickle
 /valset.pickle
+nohup.out
+configs/__pycache__/BagDis.cpython-37.pyc
+configs/__pycache__/CausalConcat.cpython-37.pyc
+configs/__pycache__/DigestSeg.cpython-37.pyc
+configs/__pycache__/Nctcrc.cpython-37.pyc
+configs/__pycache__/DigestSeg.cpython-37.pyc
+configs/__pycache__/CausalDigest.cpython-37.pyc
+data/__pycache__/DigestSeg.cpython-37.pyc
+scripts/__pycache__/redis_script.cpython-37.pyc
+runners/__pycache__/BaseTrainer.cpython-37.pyc
+utils/__pycache__/logger.cpython-37.pyc
+utils/__pycache__/logger.cpython-37.pyc
+configs/__pycache__/CausalDigest.cpython-37.pyc
+ /remote-home/ltc/HisMIL/experiments/BagDis/f1/tensorboard/events.out.tfevents.1622515409.6b5929983e7f.10568.0
+ /remote-home/ltc/HisMIL/experiments/BagDis/f1/tensorboard/events.out.tfevents.1622515441.6b5929983e7f.10673.0
+configs/__pycache__/CausalDigest.cpython-37.pyc
+configs/__pycache__/DigestSeg.cpython-37.pyc

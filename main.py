@@ -18,17 +18,19 @@ from importlib import import_module
 from utils.utility import adjust_learning_rate
 import ssl
 import os
-# os.environ["CUDA_VISIBLE_DEVICES"] = "4"
+# os.environ["CUDA_VISIBLE_DEVICES"] = "0"
 # ssl._create_default_https_context = ssl._create_unverified_context
 def parse_args():
     parser = argparse.ArgumentParser(description='317 MIL Framework')
-    parser.add_argument("--task", type=str, default="CausalDigest",
-                        help="Which task to perform",
-                        choices=["Digest", "Camelyon", "Nctcrc", "CausalDigest"])
-    parser.add_argument('--config', type=str, default='DigestSegFull',
-                        help="Config file to use.",
+    parser.add_argument("--task", type=str, default="DigestSeg",
+                        help="CCCCCConfig file",
+                        choices=["DigestSeg", "Camelyon", "Nctcrc", "CausalDigest", "CausalConcat", 'BagDis'])
+    parser.add_argument('--config', type=str, default='DigestSegEMnocamean',
+                        help=" (Sub) Config file, MIL method, since some config using the same dataset written in the same config",
                         choices=["DigestSegEMCAV2", "DigestSeg", 'DigestSegFull',"DigestSegPB",
-                                 'DigestSegTOPK', 'DigestSegFull', 'DigestSegRCE', 'NctcrcFull'])
+                                 'DigestSegTOPK', 'DigestSegFull', 'DigestSegRCE', 'NctcrcFull', 
+                                 'DigestSegEMnocahalf', 'DigestSegEMnocamean',
+                                 'DigestSegGT', 'DigestSegGM', 'DigestSegCausalConFull', 'BagDis'])
     parser.add_argument("--log_dir", type=str,
                         default="./experiments/Debug",
                         help="The experiment log directory")
@@ -54,12 +56,16 @@ def parse_args():
     #Calibration loss
     parser.add_argument("--stop_epoch", type=int, default=-1, help="stop")
     parser.add_argument("--ignore_thres", type=float, default=0.95, help="ignore")
+    parser.add_argument("--ignore_step", type=float, default=0.05, help="ignore")
     #one-stage or two stage training
     parser.add_argument("--database", action="store_true", default=False, help="Using database")
     parser.add_argument('--workers', default=16, type=int, metavar='N',
                         help='number of data loading workers (default: 32)')
     parser.add_argument("--load", type=int, default=-1, help="the epoch to be loaded")
     parser.add_argument("--load_path", type=str,
+                        default="/remote-home/ltc/HisMIL/experiments/Full/2020_12_26/f1",
+                        help="The load directory")
+    parser.add_argument("--load_path_causal", type=str,
                         default="/remote-home/ltc/HisMIL/experiments/Full/2020_12_26/f1",
                         help="The load directory")
     #EM
@@ -77,15 +83,19 @@ def parse_args():
 if __name__=='__main__':
     # res = resnet18()
     args = parse_args()
-    if args.task == 'Digest':
+    if args.task == 'DigestSeg':
         configs = getattr(import_module('configs.'+'DigestSeg'), 'Config')(args)
     elif args.task == 'Camelyon':
         configs = getattr(import_module('configs.' + 'Camelyon'), 'Config')(args)
     elif args.task == 'Nctcrc':
+        print('HI.............')
         configs = getattr(import_module('configs.' + 'Nctcrc'), 'Config')(args)
     elif args.task == 'CausalDigest':
-        # print('Here??????????')
         configs = getattr(import_module('configs.'+'CausalDigest'), 'Config')(args)
+    elif args.task == 'CausalConcat':
+        configs = getattr(import_module('configs.'+'CausalConcat'), 'Config')(args)
+    elif args.task == 'BagDis':
+        configs = getattr(import_module('configs.'+'BagDis'), 'Config')(args)
     else:
         raise NotImplementedError
     configs.logger.init_backup(configs, args.task)
@@ -107,6 +117,10 @@ if __name__=='__main__':
             # if (epoch + 1) % 10 == 0:
             tester.inference(configs.batch_size)
             tester.evaluate()
+        elif configs.config == 'DigestSegCausalConFull':
+            trainer.causalconcat_full(epoch, configs)
+            tester.causalconcat_full(configs.batch_size)
+            tester.evaluate()
         elif configs.config == 'NctcrcFull':
             trainer.train_full_nct(epoch, configs)
             if (epoch + 1) % 10 == 0:
@@ -126,7 +140,11 @@ if __name__=='__main__':
             tester.inference(configs.batch_size)
             tester.evaluate()
         elif configs.config == 'DigestSegEMCA' or \
-                configs.config == 'DigestSegEMCAV2':
+                configs.config == 'DigestSegEMCAV2' or \
+                configs.config == 'DigestSegEMnocahalf' or\
+                configs.config ==   'DigestSegEMnocamean' or\
+                configs.config ==   'DigestSegGT' or\
+                    configs.config ==   'DigestSegGM'      :
             trainer.train_EMCA(epoch, configs)
             # if (epoch + 1) % 10 == 0:
             tester.inference(configs.batch_size)
@@ -157,6 +175,8 @@ if __name__=='__main__':
             trainer.train(epoch)
             tester.inference(configs.batch_size)
             tester.evaluate()
-
+        elif configs.config == 'BagDis':
+            print('Here full')
+            trainer.train_bagdis(epoch, configs)
         else:
             raise NotImplementedError

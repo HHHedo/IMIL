@@ -286,13 +286,16 @@ class Logger(object):
             print("Warning: not implemented network loading, return default things\n")
             return net
 
-    def load_clsnet(self, clsnet, global_step=None):
+    def load_clsnet(self, clsnet, global_step=None, path=None):
         """
         Load network. This is a sub-function of self.load()
         """
         if global_step > 0:
-            self.global_step = global_step
-            load_dir = os.path.join(self.logdir, 'ckp')
+            if path is None:
+                self.global_step = global_step
+                load_dir = os.path.join(self.logdir, 'ckp')
+            else:
+                load_dir = os.path.join(path, 'ckp')
             ckpt_path = os.path.join(load_dir, 'net.ckpt{}.pth'.format(global_step))
             self.log_string('==> Resuming net of epoch {}'.format(
                 ckpt_path
