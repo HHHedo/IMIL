@@ -42,24 +42,24 @@ class Config(object):
     data_root = ""
     normalize = transforms.Normalize(mean=[0.485, 0.456, 0.406],
                                      std=[0.229, 0.224, 0.225])
-    # train_transform = transforms.Compose([
-    #     transforms.RandomResizedCrop(448, scale=(0.2, 1.)),
-    #         transforms.RandomApply([
-    #             transforms.ColorJitter(0.4, 0.4, 0.4, 0.1)  # not strengthened
-    #         ], p=0.8),
-    #         transforms.RandomGrayscale(p=0.2),
-    #         transforms.RandomApply([GaussianBlur([.1, 2.])], p=0.5),
-    #         transforms.RandomHorizontalFlip(),
-    #         transforms.ToTensor(),
-    #         normalize])
     train_transform = transforms.Compose([
-        transforms.RandomResizedCrop((448, 448)),
-        transforms.RandomHorizontalFlip(),
-        # transforms.RandomVerticalFlip(0.5),
-        # transforms.ColorJitter(0.25, 0.25, 0.25, 0.25),
-        transforms.ToTensor(),
-        normalize
-    ])
+        transforms.RandomResizedCrop(448, scale=(0.2, 1.)),
+            transforms.RandomApply([
+                transforms.ColorJitter(0.4, 0.4, 0.4, 0.1)  # not strengthened
+            ], p=0.8),
+            transforms.RandomGrayscale(p=0.2),
+            transforms.RandomApply([GaussianBlur([.1, 2.])], p=0.5),
+            transforms.RandomHorizontalFlip(),
+            transforms.ToTensor(),
+            normalize])
+    # train_transform = transforms.Compose([
+    #     transforms.RandomResizedCrop((448, 448)),
+    #     transforms.RandomHorizontalFlip(),
+    #     # transforms.RandomVerticalFlip(0.5),
+    #     # transforms.ColorJitter(0.25, 0.25, 0.25, 0.25),
+    #     transforms.ToTensor(),
+    #     normalize
+    # ])
     test_transform = transforms.Compose([
         transforms.Resize((512)),
         transforms.CenterCrop(448),
@@ -96,20 +96,20 @@ class Config(object):
     #     normalize
     #     ])
     #############
-    train_transform_C = transforms.Compose([
-        transforms.RandomResizedCrop((224, 224), scale=(0.2, 1.0)),
-        transforms.RandomHorizontalFlip(0.5),
-        transforms.RandomVerticalFlip(0.5),
-        transforms.ColorJitter(0.25, 0.25, 0.25, 0.25),
-        transforms.ToTensor(),
-        normalize
-    ])
-    test_transform_C = transforms.Compose([
-        transforms.Resize((224, 224)),
-        transforms.ToTensor(),
-        normalize
-    ])
-    batch_size = 32 # 64 for training, 256 for figure generation
+    # train_transform_C = transforms.Compose([
+    #     transforms.RandomResizedCrop((224, 224), scale=(0.2, 1.0)),
+    #     transforms.RandomHorizontalFlip(0.5),
+    #     transforms.RandomVerticalFlip(0.5),
+    #     transforms.ColorJitter(0.25, 0.25, 0.25, 0.25),
+    #     transforms.ToTensor(),
+    #     normalize
+    # ])
+    # test_transform_C = transforms.Compose([
+    #     transforms.Resize((224, 224)),
+    #     transforms.ToTensor(),
+    #     normalize
+    # ])
+    batch_size = 64 # 64 for training, 256 for figure generation
 
     ## training configs
     backbone = "res18"
@@ -131,6 +131,7 @@ class Config(object):
     # for aggnet like RNN and Twostage, the bag_len should be at least 10
     bag_len_thres = 9
     ssl = False
+    semi_ratio = None
 
     def __init__(self, args):
         self.update(args)
@@ -257,7 +258,7 @@ class Config(object):
             self.train_loader_list = []
             self.test_loader_list = []
         else:  # instance dataloader
-            self.trainset = DigestSeg(train_root, self.train_transform, None, None, database=self.database)
+            self.trainset = DigestSeg(train_root, self.train_transform, None, None, database=self.database, semi_ratio=self.semi_ratio)
             self.min_ratios = self.trainset.min_ratios
             self.mean_ratios = self.trainset.mean_ratios
             self.testset = DigestSeg(test_root, self.test_transform, None, None, database=self.database)
@@ -273,7 +274,9 @@ class Config(object):
         ## 2. build model
         self.old_backbone = self.build_backbone(self.backbone).to(self.device)
         self.old_clsnet = BaseClsNet(self.old_backbone, 2).to(self.device)
+        # backbone
         self.backbone = self.build_backbone(self.backbone).to(self.device)
+        # head
         if self.config == 'DigestSegAMIL':
             self.clsnet = AttentionClsNet(self.backbone, 1, 128, 1).to(self.device)
         elif self.config == 'DigestSegRNN':
@@ -282,7 +285,7 @@ class Config(object):
         # elif self.config == 'DigestSegAMIL':
         #     self.clsnet = AttentionClsNet(self.backbone, 1, 128, 1).to(self.device)
         else:  # instance/max/mean pooling
-            self.clsnet = BaseClsNet(self.backbone, 2).to(self.device)
+            self.clsnet = BaseClsNet(self.backbone, 1).to(self.device)
 
     def build_criterion(self):
         ## 4. build loss function
@@ -292,12 +295,23 @@ class Config(object):
             #                    (torch.stack(self.trainset.instance_real_labels).sum())
             #                    ) ** 0.5
             # self.criterion = BCEWithLogitsLoss(pos_weight=self.pos_weight.to(self.device))
-            self.criterion = nn.CrossEntropyLoss()
+            self.criterion = BCEWithLogitsLoss()
         elif self.config == 'DigestSegTOPK':
             self.criterion = {'CE': BCEWithLogitsLoss(),
                               'Center': CenterLoss(self.trainset.bag_num, 512)
                               }
         else:
+            
+            # print(len(self.trainset.instance_real_labels), (torch.stack(self.trainset.instance_real_labels).sum()))
+            # self.pos_weight = (len(self.trainset.instance_real_labels) /
+            #                    (torch.stack(self.trainset.instance_real_labels).sum())
+            #                    ) ** 0.5
+            # print(self.pos_weight)
+            # self.pos_weight = (torch.stack(self.trainset.instance_labels)==0).sum().float()/(torch.stack(self.trainset.instance_labels)==1).sum().float()
+            # print('neg num:{}, pos num:{}'.format((torch.stack(self.trainset.instance_labels)==0).sum(),
+            #                                         (torch.stack(self.trainset.instance_labels)==1).sum()))
+            # print(self.pos_weight)
+            # self.criterion = BCEWithLogitsLoss(pos_weight=self.pos_weight.to(self.device))
             self.criterion = BCEWithLogitsLoss()
         # if self.config == 'DigestSegRCE':
         #     self.pos_weight = 1 / ((self.mean_ratios - self.min_ratios) / 2 + self.min_ratios)
@@ -328,8 +342,8 @@ class Config(object):
             self.optimizer = optim.Adam([
                 {'params': self.backbone.parameters()},
                 {'params': self.clsnet.parameters()},
-                {'params': self.old_backbone.parameters(), 'lr': self.lr*0.05},
-                {'params': self.old_clsnet.parameters(), 'lr': self.lr*0.05}
+                # {'params': self.old_backbone.parameters(), 'lr': self.lr*0.05},
+                # {'params': self.old_clsnet.parameters(), 'lr': self.lr*0.05}
             ], lr=self.lr, weight_decay=self.weight_decay)
 
     def load_model_and_optimizer(self):
@@ -374,6 +388,8 @@ class Config(object):
             if self.noisy:
                 self.noisy1 = random.uniform(-1, 1)
                 self.noisy2 = random.uniform(0, 1)
+                # self.noisy1 = np.random.normal(0, 0.2, size=1)
+                # self.noisy2 = np.random.normal(0, 0.2, size=1)
                 print('mean {}, min {}'.format(self.mean_ratios, self.min_ratios))
                 self.mean_ratios = (self.mean_ratios + self.noisy1).clamp(max=1.0, min=1e-6)
                 self.min_ratios = (self.min_ratios + self.noisy2).clamp(max=self.mean_ratios, min=0)
@@ -444,7 +460,7 @@ class Config(object):
     def build_runner(self):
         # 7. Buil trainer and tester
         self.trainer = BaseTrainer(self.backbone, self.clsnet, self.optimizer, self.lrsch, self.criterion,
-                                   self.train_loader, self.trainset, self.train_loader_list, self.val_loader,
+                                   self.train_loader, self.trainset, self.train_loader_list, self.valset, self.val_loader,
                                    self.train_mmbank, self.save_interval,
                                    self.logger, self.config, self.old_backbone, self.old_clsnet)
         self.tester = BaseTester(self.backbone, self.clsnet, self.test_loader, self.testset, self.test_loader_list,

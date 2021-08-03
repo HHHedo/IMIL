@@ -64,7 +64,7 @@ class DigestSeg(Dataset):
         is a noisy term.)
     """
     def __init__(self, root, ins_transform=None, label_transform=None, cls_label_dict=None, pos_ins_threshold=0, 
-        use_clear_pos_ratios=True, database=None, ssl=None, ssl_transform=None):
+        use_clear_pos_ratios=True, database=None, ssl=None, ssl_transform=None, semi_ratio=None ,alpha=2):
         self.root = root
         self.class_path_list = self.init_cls_path(cls_label_dict)
         self.ins_transform = ins_transform
@@ -104,7 +104,21 @@ class DigestSeg(Dataset):
         self.tmp_instance_in_where = self.instance_in_where
         self.tmp_instance_labels = self.instance_labels
         self.tmp_instance_real_labels = self.instance_real_labels
+        self.semi_ratio = semi_ratio
+        if self.semi_ratio:
+            self.semi_labels, self.semi_index = self.get_semi_label(alpha)
 
+    def get_semi_label(self, alpha):
+        num = len(self.tmp_instance_labels)
+        masks = np.ones(num)
+        masks[:int(self.semi_ratio*num)] = 0 # ratio real(mask=1), (1-ratio) fake(propogation, mask=0)
+        print(num,self.semi_ratio, int(self.semi_ratio*num))
+        np.random.shuffle(masks)
+        print(masks)
+        semi_labels = masks*np.array(self.tmp_instance_labels) +(1-masks)*np.array(self.tmp_instance_real_labels)
+        semi_labels = semi_labels.tolist()
+        masks = (alpha - (alpha-1)*masks).tolist()
+        return semi_labels, masks
 
     def _scan(self):
         bag_idx = 0
@@ -336,6 +350,7 @@ class DigestSeg(Dataset):
         # return img, label, bag_idx, inner_idx, nodule_ratio, real_label
         img_dir = self.tmp_instance_paths[idx]
         bag_idx, inner_idx = self.tmp_instance_in_which_bag[idx], self.tmp_instance_in_where[idx]
+        # print(bag_idx, inner_idx)
         #TODO:inner_idx = self.tmp_instance_in_where[idx]
         # nodule_ratio = self.bag_pos_ratios[self.bag_idx_list.index(bag_idx)]
         nodule_ratio = self.instance_infos[idx][2]
@@ -365,6 +380,10 @@ class DigestSeg(Dataset):
             img = self.ins_transform(img)
         if callable(self.label_transform):
             label = self.label_transform
+        if self.semi_ratio:
+            semi_label = self.semi_labels[idx]
+            semi_index = self.semi_index[idx]
+            return img, semi_label, bag_idx, inner_idx, nodule_ratio, real_label, semi_index
         return img, label, bag_idx, inner_idx, nodule_ratio, real_label
     
     def __len__(self):

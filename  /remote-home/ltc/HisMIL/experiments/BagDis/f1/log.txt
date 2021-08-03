@@ -1,1 +1,0 @@
-==> Resuming net of epoch  /remote-home/ltc/HisMIL/experiments/BagDis/f1/ckp/net.ckpt50.pth

@@ -84,11 +84,11 @@ class Logger(object):
         if global_step is None:
             self.summary_writer.add_scalar(tag, value, self.global_step)
             if print:
-                self.log_string("{}: {}\n".format(tag, value))
+                self.log_string("{}: {:.4f}\n".format(tag, value))
         else:
             self.summary_writer.add_scalar(tag, value, global_step)
             if print:
-                self.log_string("{}:{}\n".format(tag, value))
+                self.log_string("{}:{:.4f}\n".format(tag, value))
 
 
     def log_scalar_train(self, tag, value, global_step):

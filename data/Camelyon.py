@@ -7,9 +7,10 @@ from PIL import Image
 from torch.utils.data import DataLoader, Dataset
 import pickle
 import numpy as np
-sys.path.append("../")
-from tqdm import tqdm
 
+from tqdm import tqdm
+sys.path.append("..")
+from utils.utility import GaussianBlur
 def is_image_file(filename):
     return any(filename.endswith(extension) for extension in [".png", ".jpg", ".jpeg", ".bmp"])
 
@@ -65,7 +66,7 @@ class Camelyon(Dataset):
         is a noisy term.)
     """
 
-    def __init__(self, root, ins_transform=None, label_transform=None, cls_label_dict=None, database=None):
+    def __init__(self, root, ins_transform=None, label_transform=None, cls_label_dict=None, database=None, semi_ratio=None ,alpha=2):
         self.root = root
         self.class_path_list = self.init_cls_path()
         self.ins_transform = ins_transform
@@ -113,7 +114,22 @@ class Camelyon(Dataset):
         self.tmp_instance_in_where = self.instance_in_where
         self.tmp_instance_labels = self.instance_labels
         self.tmp_instance_real_labels = self.instance_real_labels
+        self.semi_ratio = semi_ratio
+        if self.semi_ratio:
+            self.semi_labels, self.semi_index = self.get_semi_label(alpha)
 
+
+    def get_semi_label(self, alpha):
+        num = len(self.tmp_instance_labels)
+        masks = np.ones(num)
+        masks[:int(self.semi_ratio*num)] = 0          # ratio real(mask=1), (1-ratio) fake(propogation, mask=0)
+        print(num,self.semi_ratio, int(self.semi_ratio*num))
+        np.random.shuffle(masks)
+        print(masks)
+        semi_labels = masks*np.array(self.tmp_instance_labels) +(1-masks)*np.array(self.tmp_instance_real_labels)
+        semi_labels = semi_labels.tolist()
+        masks = (alpha - (alpha-1)*masks).tolist()
+        return semi_labels, masks
 
     def _scan(self):
         bag_idx = 0
@@ -304,8 +320,9 @@ class Camelyon(Dataset):
         # img_dir, bag_name, bag_idx, inner_idx = patch['path'], patch['bag_name'], patch['bag_idx'], patch['inner_idx']
         # nodule_ratio = self.bag_info[bag_name]['ratio']
         img_dir = self.tmp_instance_paths[idx]
-        bag_idx, inner_idx = self.tmp_instance_in_which_bag[idx], (self.tmp_instance_in_where[idx], self.instance_c_x[idx], self.instance_c_y[idx], img_dir)
-                             # self.tmp_instance_in_where[idx]
+        bag_idx, inner_idx = self.tmp_instance_in_which_bag[idx], self.tmp_instance_in_where[idx]
+                             # (self.tmp_instance_in_where[idx], self.instance_c_x[idx], self.instance_c_y[idx], img_dir)
+        # print(bag_idx, inner_idx)
         nodule_ratio = self.bag_pos_ratios[self.bag_idx_list.index(bag_idx)]
         if not self.database:
             img = Image.open(img_dir).convert('RGB')
@@ -320,6 +337,11 @@ class Camelyon(Dataset):
             img = self.ins_transform(img)
         if callable(self.label_transform):
             label = self.label_transform
+        if self.semi_ratio:
+            semi_label = self.semi_labels[idx]
+            semi_index = self.semi_index[idx]
+            return img, semi_label, bag_idx, inner_idx, nodule_ratio, real_label, semi_index
+     
         return img, label, bag_idx, inner_idx, nodule_ratio, real_label
 
     def __len__(self):
@@ -391,40 +413,44 @@ if __name__ == "__main__":
     normalize = transforms.Normalize(mean=[0.485, 0.456, 0.406],
                                      std=[0.229, 0.224, 0.225])
     #############
+   
     train_transform_C = transforms.Compose([
-        transforms.RandomResizedCrop((224, 224), scale=(0.2, 1.0)),
-        transforms.RandomHorizontalFlip(0.5),
-        transforms.RandomVerticalFlip(0.5),
-        transforms.ColorJitter(0.25, 0.25, 0.25, 0.25),
-        transforms.ToTensor(),
-        normalize
-    ])
-    test_transform_C = transforms.Compose([
-        transforms.Resize((224, 224)),
+        transforms.RandomResizedCrop(224, scale=(0.2, 1.)),
+            transforms.RandomApply([
+                transforms.ColorJitter(0.4, 0.4, 0.4, 0.1)  # not strengthened
+            ], p=0.8),
+            transforms.RandomGrayscale(p=0.2),
+            transforms.RandomApply([GaussianBlur([.1, 2.])], p=0.5),
+            transforms.RandomHorizontalFlip(),
+            transforms.ToTensor(),
+            normalize])
+    test_transform_C  = transforms.Compose([
+        transforms.Resize((256)),
+        transforms.CenterCrop(224),
         transforms.ToTensor(),
         normalize
     ])
     import pickle
-    # train_root = "/remote-home/source/DATA/CAMELYON16/DATA/train"
-    # test_root = "/remote-home/source/DATA/CAMELYON16/DATA/validation"
-    train_root = '/lustre/home/acct-seexy/seexy/main/datasets/CAMELYON16/train'
-    test_root = '/lustre/home/acct-seexy/seexy/main/datasets/CAMELYON16/test'
-    trainset = Camelyon(train_root, train_transform_C, None, None, None)
+    train_root = "/remote-home/share/DATA/CAMELYON16/DATA/train"
+    test_root = "/remote-home/share/DATA/CAMELYON16/DATA/validation"
+    # train_root = '/lustre/home/acct-seexy/seexy/main/datasets/CAMELYON16/train'
+    # test_root = '/lustre/home/acct-seexy/seexy/main/datasets/CAMELYON16/test'
+    trainset = Camelyon(train_root, train_transform_C, None, None, None, semi_ratio=0.5)
     # selected_idx = torch.zeros(trainset.bag_num, trainset.max_ins_num)
     # selected_idx[:,:3]=1
     # trainset.generate_new_data(selected_idx)
-    # with open('/remote-home/my/HisMIL/trainset.pickle','wb') as f:
-    #     pickle.dump(trainset, f)
-    # del trainset
+    with open('/remote-home/ltc/HisMIL/trainset_semi.pickle','wb') as f:
+        pickle.dump(trainset, f)
+    del trainset
     testset = Camelyon(test_root, test_transform_C, None, None, None)
-    # with open('/remote-home/my/HisMIL/testset.pickle','wb') as f:
-    #     pickle.dump(testset, f)
-    # del testset
+    with open('/remote-home/ltc/HisMIL/testset_semi.pickle','wb') as f:
+        pickle.dump(testset, f)
+    del testset
     valset =  Camelyon(train_root, test_transform_C, None, None, None)
-    # with open('/remote-home/my/HisMIL/valset.pickle','wb') as f:
-    #     pickle.dump(valset, f)
+    with open('/remote-home/ltc/HisMIL/valset_semi.pickle','wb') as f:
+        pickle.dump(valset, f)
 
-    # print('done')
+    print('done')
 
 
 

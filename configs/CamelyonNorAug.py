@@ -24,8 +24,7 @@ import torch.optim as optim
 import torch
 from utils.utility import init_all_dl, init_pn_dl
 import pickle
-torch.multiprocessing.set_sharing_strategy('file_system') #RuntimeError: unable to open shared memory object </torch_48953_413650267> in read-write mode
-
+# torch.multiprocessing.set_sharing_strategy('file_system')
 
 import redis
 import random
@@ -48,19 +47,20 @@ class Config(object):
                                      std=[0.229, 0.224, 0.225])
     #############
     train_transform = transforms.Compose([
-        transforms.RandomResizedCrop(224, scale=(0.2, 1.)),
-            transforms.RandomApply([
-                transforms.ColorJitter(0.4, 0.4, 0.4, 0.1)  # not strengthened
-            ], p=0.8),
-            transforms.RandomGrayscale(p=0.2),
-            transforms.RandomApply([GaussianBlur([.1, 2.])], p=0.5),
+        # transforms.RandomResizedCrop(224, scale=(0.2, 1.)),
+            # transforms.RandomApply([
+            #     transforms.ColorJitter(0.4, 0.4, 0.4, 0.1)  # not strengthened
+            # ], p=0.8),
+            # transforms.RandomGrayscale(p=0.2),
+            # transforms.RandomApply([GaussianBlur([.1, 2.])], p=0.5),
+            transforms.RandomResizedCrop(224),
             transforms.RandomHorizontalFlip(),
             transforms.ToTensor(),
             normalize])
     test_transform  = transforms.Compose([
+        # transforms.Resize((224, 224)),
         transforms.Resize((256)),
         transforms.CenterCrop(224),
-        # transforms.Resize((224, 224)),
         transforms.ToTensor(),
         normalize
     ])
@@ -86,7 +86,6 @@ class Config(object):
     # for aggnet like RNN and Twostage, the bag_len should be at least 10
     bag_len_thres = 9
     ssl = False
-    semi_ratio = None
 
     def __init__(self, args):
         self.update(args)
@@ -175,43 +174,30 @@ class Config(object):
         if not self.pickle:
 
             train_root = os.path.join(self.data_root, "train")
-            self.trainset = Camelyon(train_root, self.train_transform , None, None, database=self.database, semi_ratio=self.semi_ratio)
+            self.trainset = Camelyon(train_root, self.train_transform , None, None, database=self.database)
             self.min_ratios = self.trainset.min_ratios
             self.mean_ratios = self.trainset.mean_ratios
             test_root = os.path.join(self.data_root, "validation")
-            self.testset = Camelyon(test_root, self.test_transform , None, None, database=self.database, semi_ratio=self.semi_ratio)
+            self.testset = Camelyon(test_root, self.test_transform , None, None, database=self.database)
             self.train_loader = DataLoader(self.trainset, self.batch_size, shuffle=True, num_workers=self.workers)
             self.test_loader = DataLoader(self.testset, self.batch_size, shuffle=False, num_workers=self.workers)
             self.train_loader_list = []
             self.test_loader_list = []
-            self.valset = Camelyon(train_root, self.test_transform , None, None, database=self.database, semi_ratio=self.semi_ratio)
+            self.valset = Camelyon(train_root, self.test_transform , None, None, database=self.database)
             self.val_loader = DataLoader(self.valset, self.batch_size, shuffle=False, num_workers=self.workers)
-        # elif self.pickle and self.config == 'DigestSemi':
-        #     print('Pickle with semi setting')
-        #     with open('/remote-home/ltc/HisMIL/trainset_semi.pickle', 'rb') as f:
-        #         self.trainset = pickle.load(f)
-        #     self.min_ratios = self.trainset.min_ratios
-        #     self.mean_ratios = self.trainset.mean_ratios
-        #     self.train_loader = DataLoader(self.trainset, self.batch_size, shuffle=True, num_workers=self.workers)
-        #     with open('/remote-home/ltc/HisMIL/testset_semi.pickle', 'rb') as f:
-        #         self.testset = pickle.load(f)
-        #     self.test_loader = DataLoader(self.testset, self.batch_size, shuffle=False, num_workers=self.workers)
-        #     with open('/remote-home/ltc/HisMIL/valset_semi.pickle', 'rb') as f:
-        #         self.valset = pickle.load(f)
-        #     self.val_loader = DataLoader(self.valset, self.batch_size, shuffle=False, num_workers=self.workers)
-        # else:
-        #     print('Pickle with wrong test setting')
-        #     with open('/remote-home/ltc/HisMIL/trainset.pickle', 'rb') as f:
-        #         self.trainset = pickle.load(f)
-        #     self.min_ratios = self.trainset.min_ratios
-        #     self.mean_ratios = self.trainset.mean_ratios
-        #     self.train_loader = DataLoader(self.trainset, self.batch_size, shuffle=True, num_workers=self.workers)
-        #     with open('/remote-home/ltc/HisMIL/testset_semi.pickle', 'rb') as f:
-        #         self.testset = pickle.load(f)
-        #     self.test_loader = DataLoader(self.testset, self.batch_size, shuffle=False, num_workers=self.workers)
-        #     with open('/remote-home/ltc/HisMIL/valset.pickle', 'rb') as f:
-        #         self.valset = pickle.load(f)
-        #     self.val_loader = DataLoader(self.valset, self.batch_size, shuffle=False, num_workers=self.workers)
+        else:
+            print('HI.....')
+            with open('/remote-home/ltc/HisMIL/trainset.pickle', 'rb') as f:
+                self.trainset = pickle.load(f)
+            self.min_ratios = self.trainset.min_ratios
+            self.mean_ratios = self.trainset.mean_ratios
+            self.train_loader = DataLoader(self.trainset, self.batch_size, shuffle=True, num_workers=self.workers)
+            with open('/remote-home/ltc/HisMIL/testset.pickle', 'rb') as f:
+                self.testset = pickle.load(f)
+            self.test_loader = DataLoader(self.testset, self.batch_size, shuffle=False, num_workers=self.workers)
+            with open('/remote-home/ltc/HisMIL/valset.pickle', 'rb') as f:
+                self.valset = pickle.load(f)
+            self.val_loader = DataLoader(self.valset, self.batch_size, shuffle=False, num_workers=self.workers)
 
         self.train_loader_list = []
         self.test_loader_list = []
@@ -235,17 +221,12 @@ class Config(object):
         ## 4. build loss function
         if self.config == 'DigestSegFull':
             print("-" * 60)
-            self.pos_weight = torch.tensor([(len(self.trainset.instance_real_labels) /
-                               (self.trainset.instance_real_labels.sum())
-                                           )** 0.5])
-            print('pos_weight{}'.format(self.pos_weight))
+            # self.pos_weight = torch.tensor([(len(self.trainset.instance_real_labels) /
+            #                    (self.trainset.instance_real_labels.sum())
+            #                                )])
+            # print('pos_weight{}'.format(self.pos_weight))
             # self.criterion = BCEWithLogitsLoss(pos_weight=self.pos_weight.to(self.device))
-
-            # self.pos_weight = (len(self.trainset.instance_real_labels) /
-            #                    (torch.stack(self.trainset.instance_real_labels).sum())
-            #                    ) ** 0.5
-            self.criterion = BCEWithLogitsLoss(pos_weight=self.pos_weight.to(self.device))
-            # self.criterion = BCEWithLogitsLoss()
+            self.criterion = BCEWithLogitsLoss()
         elif self.config == 'DigestSegTOPK':
             self.criterion = {'CE': BCEWithLogitsLoss(),
                               'Center': CenterLoss(self.trainset.bag_num, 512)

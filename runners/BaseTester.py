@@ -60,7 +60,8 @@ class BaseTester(object):
             for batch_idx, (img, instance_label, bag_idx, inner_idx, _, _) in enumerate(tqdm(self.test_loader, ascii=True, ncols=60)):
                 # instance_preds,_= self.clsnet(self.backbone(img.to(self.device)), bag_idx, inner_idx, self.old_backbone, img.to(self.device))
                 instance_preds = self.clsnet(self.backbone(img.to(self.device)))
-                self.memory_bank.update(bag_idx, inner_idx, softmax(instance_preds)[:,1])
+                # self.memory_bank.update(bag_idx, inner_idx, softmax(instance_preds)[:,1])
+                self.memory_bank.update(bag_idx, inner_idx, instance_preds.sigmoid())
             self.logger.save_result(
             "test_mmbank", self.memory_bank.state_dict())
     
