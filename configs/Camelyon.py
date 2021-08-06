@@ -24,7 +24,7 @@ import torch.optim as optim
 import torch
 from utils.utility import init_all_dl, init_pn_dl
 import pickle
-torch.multiprocessing.set_sharing_strategy('file_system') #RuntimeError: unable to open shared memory object </torch_48953_413650267> in read-write mode
+# torch.multiprocessing.set_sharing_strategy('file_system') #RuntimeError: unable to open shared memory object </torch_48953_413650267> in read-write mode
 
 
 import redis
@@ -151,27 +151,27 @@ class Config(object):
 
     def build_data(self):
         ## 1. build dataset & dataloader
-        # import sys
-        # import torch
-        # from torch.utils.data import dataloader
-        # from torch.multiprocessing import reductions
-        # from multiprocessing.reduction import ForkingPickler
+        import sys
+        import torch
+        from torch.utils.data import dataloader
+        from torch.multiprocessing import reductions
+        from multiprocessing.reduction import ForkingPickler
 
-        # default_collate_func = dataloader.default_collate
+        default_collate_func = dataloader.default_collate
 
-        # def default_collate_override(batch):
-        #     dataloader._use_shared_memory = False
-        #     return default_collate_func(batch)
+        def default_collate_override(batch):
+            dataloader._use_shared_memory = False
+            return default_collate_func(batch)
 
-        # setattr(dataloader, 'default_collate', default_collate_override)
+        setattr(dataloader, 'default_collate', default_collate_override)
 
-        # for t in torch._storage_classes:
-        #     if sys.version_info[0] == 2:
-        #         if t in ForkingPickler.dispatch:
-        #             del ForkingPickler.dispatch[t]
-        #     else:
-        #         if t in ForkingPickler._extra_reducers:
-        #             del ForkingPickler._extra_reducers[t]
+        for t in torch._storage_classes:
+            if sys.version_info[0] == 2:
+                if t in ForkingPickler.dispatch:
+                    del ForkingPickler.dispatch[t]
+            else:
+                if t in ForkingPickler._extra_reducers:
+                    del ForkingPickler._extra_reducers[t]
         if not self.pickle:
 
             train_root = os.path.join(self.data_root, "train")
@@ -179,12 +179,12 @@ class Config(object):
             self.min_ratios = self.trainset.min_ratios
             self.mean_ratios = self.trainset.mean_ratios
             test_root = os.path.join(self.data_root, "validation")
-            self.testset = Camelyon(test_root, self.test_transform , None, None, database=self.database, semi_ratio=self.semi_ratio)
+            self.testset = Camelyon(test_root, self.test_transform , None, None, database=self.database)
             self.train_loader = DataLoader(self.trainset, self.batch_size, shuffle=True, num_workers=self.workers)
             self.test_loader = DataLoader(self.testset, self.batch_size, shuffle=False, num_workers=self.workers)
             self.train_loader_list = []
             self.test_loader_list = []
-            self.valset = Camelyon(train_root, self.test_transform , None, None, database=self.database, semi_ratio=self.semi_ratio)
+            self.valset = Camelyon(train_root, self.test_transform , None, None, database=self.database)
             self.val_loader = DataLoader(self.valset, self.batch_size, shuffle=False, num_workers=self.workers)
         # elif self.pickle and self.config == 'DigestSemi':
         #     print('Pickle with semi setting')
@@ -315,7 +315,7 @@ class Config(object):
                                                     self.testset.max_ins_num,
                                                     self.testset.bag_lengths,
                                                     0.0)
-            if self.config == 'DigestSeg':  # AMIL no loading
+            if self.mmt!= 0:  # AMIL no loading
                 self.test_mmbank.load(os.path.join(self.logger.logdir, "test_mmbank"), self.resume)
 
         elif self.config == 'DigestSegRCE':
@@ -385,7 +385,8 @@ class Config(object):
                                                     self.testset.max_ins_num,
                                                     self.testset.bag_lengths,
                                                     0.0)
-            self.test_mmbank.load(os.path.join(self.logger.logdir, "test_mmbank"), self.resume)
+            if self.mmt!= 0:
+                self.test_mmbank.load(os.path.join(self.logger.logdir, "test_mmbank"), self.resume)
 
     def build_runner(self):
         # 7. Buil trainer and tester

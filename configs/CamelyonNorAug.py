@@ -86,6 +86,7 @@ class Config(object):
     # for aggnet like RNN and Twostage, the bag_len should be at least 10
     bag_len_thres = 9
     ssl = False
+    semi_ratio = None
 
     def __init__(self, args):
         self.update(args)
@@ -150,31 +151,31 @@ class Config(object):
 
     def build_data(self):
         ## 1. build dataset & dataloader
-        # import sys
-        # import torch
-        # from torch.utils.data import dataloader
-        # from torch.multiprocessing import reductions
-        # from multiprocessing.reduction import ForkingPickler
+        import sys
+        import torch
+        from torch.utils.data import dataloader
+        from torch.multiprocessing import reductions
+        from multiprocessing.reduction import ForkingPickler
 
-        # default_collate_func = dataloader.default_collate
+        default_collate_func = dataloader.default_collate
 
-        # def default_collate_override(batch):
-        #     dataloader._use_shared_memory = False
-        #     return default_collate_func(batch)
+        def default_collate_override(batch):
+            dataloader._use_shared_memory = False
+            return default_collate_func(batch)
 
-        # setattr(dataloader, 'default_collate', default_collate_override)
+        setattr(dataloader, 'default_collate', default_collate_override)
 
-        # for t in torch._storage_classes:
-        #     if sys.version_info[0] == 2:
-        #         if t in ForkingPickler.dispatch:
-        #             del ForkingPickler.dispatch[t]
-        #     else:
-        #         if t in ForkingPickler._extra_reducers:
-        #             del ForkingPickler._extra_reducers[t]
+        for t in torch._storage_classes:
+            if sys.version_info[0] == 2:
+                if t in ForkingPickler.dispatch:
+                    del ForkingPickler.dispatch[t]
+            else:
+                if t in ForkingPickler._extra_reducers:
+                    del ForkingPickler._extra_reducers[t]
         if not self.pickle:
 
             train_root = os.path.join(self.data_root, "train")
-            self.trainset = Camelyon(train_root, self.train_transform , None, None, database=self.database)
+            self.trainset = Camelyon(train_root, self.train_transform , None, None, database=self.database, semi_ratio=self.semi_ratio)
             self.min_ratios = self.trainset.min_ratios
             self.mean_ratios = self.trainset.mean_ratios
             test_root = os.path.join(self.data_root, "validation")
@@ -185,19 +186,19 @@ class Config(object):
             self.test_loader_list = []
             self.valset = Camelyon(train_root, self.test_transform , None, None, database=self.database)
             self.val_loader = DataLoader(self.valset, self.batch_size, shuffle=False, num_workers=self.workers)
-        else:
-            print('HI.....')
-            with open('/remote-home/ltc/HisMIL/trainset.pickle', 'rb') as f:
-                self.trainset = pickle.load(f)
-            self.min_ratios = self.trainset.min_ratios
-            self.mean_ratios = self.trainset.mean_ratios
-            self.train_loader = DataLoader(self.trainset, self.batch_size, shuffle=True, num_workers=self.workers)
-            with open('/remote-home/ltc/HisMIL/testset.pickle', 'rb') as f:
-                self.testset = pickle.load(f)
-            self.test_loader = DataLoader(self.testset, self.batch_size, shuffle=False, num_workers=self.workers)
-            with open('/remote-home/ltc/HisMIL/valset.pickle', 'rb') as f:
-                self.valset = pickle.load(f)
-            self.val_loader = DataLoader(self.valset, self.batch_size, shuffle=False, num_workers=self.workers)
+        # else:
+        #     print('HI.....')
+        #     with open('/remote-home/ltc/HisMIL/trainset.pickle', 'rb') as f:
+        #         self.trainset = pickle.load(f)
+        #     self.min_ratios = self.trainset.min_ratios
+        #     self.mean_ratios = self.trainset.mean_ratios
+        #     self.train_loader = DataLoader(self.trainset, self.batch_size, shuffle=True, num_workers=self.workers)
+        #     with open('/remote-home/ltc/HisMIL/testset.pickle', 'rb') as f:
+        #         self.testset = pickle.load(f)
+        #     self.test_loader = DataLoader(self.testset, self.batch_size, shuffle=False, num_workers=self.workers)
+        #     with open('/remote-home/ltc/HisMIL/valset.pickle', 'rb') as f:
+        #         self.valset = pickle.load(f)
+        #     self.val_loader = DataLoader(self.valset, self.batch_size, shuffle=False, num_workers=self.workers)
 
         self.train_loader_list = []
         self.test_loader_list = []
@@ -221,12 +222,11 @@ class Config(object):
         ## 4. build loss function
         if self.config == 'DigestSegFull':
             print("-" * 60)
-            # self.pos_weight = torch.tensor([(len(self.trainset.instance_real_labels) /
-            #                    (self.trainset.instance_real_labels.sum())
-            #                                )])
-            # print('pos_weight{}'.format(self.pos_weight))
-            # self.criterion = BCEWithLogitsLoss(pos_weight=self.pos_weight.to(self.device))
-            self.criterion = BCEWithLogitsLoss()
+            self.pos_weight = torch.tensor([(len(self.trainset.instance_real_labels) /
+                               (self.trainset.instance_real_labels.sum())
+                                           )** 0.5])
+            print('pos_weight{}'.format(self.pos_weight))
+            self.criterion = BCEWithLogitsLoss(pos_weight=self.pos_weight.to(self.device))
         elif self.config == 'DigestSegTOPK':
             self.criterion = {'CE': BCEWithLogitsLoss(),
                               'Center': CenterLoss(self.trainset.bag_num, 512)

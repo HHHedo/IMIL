@@ -10,7 +10,7 @@ import numpy as np
 import torch.utils.model_zoo as model_zoo
 import math
 from .backbones.ResNet import ResNet10, ResNet18, ResNet34, ResNet50
-import faiss
+# import faiss
 class BaseClsNet(nn.Module):
     '''
     Basic classification network. With single classification head and single backbone.
