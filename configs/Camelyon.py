@@ -20,6 +20,7 @@ from data.EMDigestSeg import EMDigestSeg
 import torchvision.transforms as transforms
 import torch.nn as nn
 import torch.nn.functional as F
+import numpy as np
 import torch.optim as optim
 import torch
 from utils.utility import init_all_dl, init_pn_dl
@@ -175,7 +176,8 @@ class Config(object):
         if not self.pickle:
 
             train_root = os.path.join(self.data_root, "train")
-            self.trainset = Camelyon(train_root, self.train_transform , None, None, database=self.database, semi_ratio=self.semi_ratio)
+            self.trainset = Camelyon(train_root, self.train_transform , None, None, database=self.database,
+                                     semi_ratio=self.semi_ratio, noisy=self.noisy)
             self.min_ratios = self.trainset.min_ratios
             self.mean_ratios = self.trainset.mean_ratios
             test_root = os.path.join(self.data_root, "validation")
@@ -320,8 +322,10 @@ class Config(object):
 
         elif self.config == 'DigestSegRCE':
             if self.noisy:
-                self.noisy1 = random.uniform(-1, 1)
-                self.noisy2 = random.uniform(0, 1)
+                self.noisy1 = random.uniform(-0.5 * self.mean_ratios, 0.5 * self.mean_ratios)
+                self.noisy2 = random.uniform(-0.5 * self.min_ratios, 0.5 * self.min_ratios + 1e-6)
+                # self.noisy1 = np.random.normal(0, 0.2, size=1)
+                # self.noisy2 = np.random.normal(0, 0.2, size=1)
                 print('mean {}, min {}'.format(self.mean_ratios, self.min_ratios))
                 self.mean_ratios = (self.mean_ratios + self.noisy1).clamp(max=1.0, min=1e-6)
                 self.min_ratios = (self.min_ratios + self.noisy2).clamp(max=self.mean_ratios, min=0)
@@ -329,11 +333,13 @@ class Config(object):
             self.train_mmbank = RCETensorMemoryBank(self.trainset.bag_num,
                                                     self.trainset.max_ins_num,
                                                     self.trainset.bag_lengths,
+                                                    1,
                                                     self.mmt, self.mean_ratios, self.min_ratios)
             self.train_mmbank.load(os.path.join(self.logger.logdir, "train_mmbank"), self.resume)
             self.test_mmbank = RCETensorMemoryBank(self.testset.bag_num,
                                                    self.testset.max_ins_num,
                                                    self.testset.bag_lengths,
+                                                   1,
                                                    0.0)
             self.test_mmbank.load(os.path.join(self.logger.logdir, "test_mmbank"), self.resume)
 
@@ -352,6 +358,7 @@ class Config(object):
             self.train_mmbank = PBTensorMemoryBank(self.trainset.bag_num,
                                                    self.trainset.max_ins_num,
                                                    self.trainset.bag_lengths,
+                                                   1,
                                                    self.mmt,
                                                    self.trainset.instance_in_which_bag,
                                                    self.trainset.instance_in_where,
@@ -364,6 +371,7 @@ class Config(object):
             self.test_mmbank = PBTensorMemoryBank(self.testset.bag_num,
                                                   self.testset.max_ins_num,
                                                   self.testset.bag_lengths,
+                                                  1,
                                                   0.0,
                                                   self.testset.instance_in_which_bag,
                                                   self.testset.instance_in_where,
@@ -377,6 +385,7 @@ class Config(object):
             self.train_mmbank = CaliTensorMemoryBank(self.trainset.bag_num,
                                                      self.trainset.max_ins_num,
                                                      self.trainset.bag_lengths,
+                                                     1,
                                                      self.mmt,
                                                      self.ignore_ratio,
                                                      self.stop_epoch)
@@ -384,6 +393,7 @@ class Config(object):
             self.test_mmbank = CaliTensorMemoryBank(self.testset.bag_num,
                                                     self.testset.max_ins_num,
                                                     self.testset.bag_lengths,
+                                                    1,
                                                     0.0)
             if self.mmt!= 0:
                 self.test_mmbank.load(os.path.join(self.logger.logdir, "test_mmbank"), self.resume)

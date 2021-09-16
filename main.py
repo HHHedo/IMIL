@@ -70,7 +70,7 @@ def parse_args():
                         default="/remote-home/ltc/HisMIL/experiments/Full/2020_12_26/f1",
                         help="The load directory")
     #EM
-    parser.add_argument("--mmt", type=float, default=0.9, help="mmt")
+    parser.add_argument("--mmt", type=float, default=0, help="mmt")
     parser.add_argument("--noisy", action="store_true", default=False, help="Noisy bag pos ratio")
 
     # ssl
@@ -80,6 +80,9 @@ def parse_args():
     #semi
     parser.add_argument("--semi_ratio", type=float, default=None, help="semi")
     # args = parser.parse_args(['-lr', '1e-3'])
+    parser.add_argument("--target_cls", type=str,
+                        default="dog",
+                        help="The target object for pascal voc")
     args = parser.parse_args()
     return args
 
@@ -100,6 +103,8 @@ if __name__=='__main__':
         configs = getattr(import_module('configs.' + 'DigestSegNojitter'), 'Config')(args)
     elif args.task == 'DigestSegNoall':
         configs = getattr(import_module('configs.' + 'DigestSegNoall'), 'Config')(args)
+    elif args.task == 'DigestSegRot':
+        configs = getattr(import_module('configs.' + 'DigestSegRot'), 'Config')(args)
     elif args.task == 'Camelyon':
         print('HI.............')
         configs = getattr(import_module('configs.' + 'Camelyon'), 'Config')(args)
@@ -115,6 +120,11 @@ if __name__=='__main__':
         configs = getattr(import_module('configs.'+'CausalConcat'), 'Config')(args)
     elif args.task == 'BagDis':
         configs = getattr(import_module('configs.'+'BagDis'), 'Config')(args)
+
+    elif args.task == 'Pascal':
+        configs = getattr(import_module('configs.' + 'Pascal'), 'Config')(args)
+    elif args.task == 'Pascal_nor':
+        configs = getattr(import_module('configs.' + 'Pascal_nor'), 'Config')(args)
     else:
         raise NotImplementedError
     configs.logger.init_backup(configs, args.task)
@@ -123,11 +133,14 @@ if __name__=='__main__':
     # for epoch in range(configs.logger.global_step, configs.epochs):
     #     adjust_learning_rate(configs.optimizer, epoch, args)
     #     trainer.train(epoch)
-    #     tester.inference()
-    #     tester.evaluate()
+    # tester.inference()
+    # tester.evaluate()
     # for i in range(1, 11):
-    #     trainer.eval(i, configs.valset)
-    # trainer.eval_(50, configs.testset)
+    #fig 2 local
+    # trainer.eval(8, configs.valset)
+    # trainer.eval_catplot(2, configs.testset)
+
+    # tester.eval_(50, configs.testset)
     for epoch in range(configs.logger.global_step, configs.epochs):
         adjust_learning_rate(configs.optimizer, epoch, args)
         if configs.config == 'DigestSegFull':
@@ -203,3 +216,7 @@ if __name__=='__main__':
             trainer.train_bagdis(epoch, configs)
         else:
             raise NotImplementedError
+
+    # configs = getattr(import_module('configs.' + 'camelyontest'), 'Config')(args)
+    # tester = configs.tester
+    # tester.test_instance()

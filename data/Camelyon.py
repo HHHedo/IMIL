@@ -66,7 +66,7 @@ class Camelyon(Dataset):
         is a noisy term.)
     """
 
-    def __init__(self, root, ins_transform=None, label_transform=None, cls_label_dict=None, database=None, semi_ratio=None ,alpha=2):
+    def __init__(self, root, ins_transform=None, label_transform=None, cls_label_dict=None, database=None, semi_ratio=None ,noisy=False):
         self.root = root
         self.class_path_list = self.init_cls_path()
         self.ins_transform = ins_transform
@@ -116,19 +116,33 @@ class Camelyon(Dataset):
         self.tmp_instance_real_labels = self.instance_real_labels
         self.semi_ratio = semi_ratio
         if self.semi_ratio:
-            self.semi_labels, self.semi_index = self.get_semi_label(alpha)
+            self.semi_labels, self.semi_index = self.get_semi_label(noisy)
 
 
-    def get_semi_label(self, alpha):
+    def get_semi_label(self, noisy):
         num = len(self.tmp_instance_labels)
-        masks = np.ones(num)
-        masks[:int(self.semi_ratio*num)] = 0          # ratio real(mask=1), (1-ratio) fake(propogation, mask=0)
-        print(num,self.semi_ratio, int(self.semi_ratio*num))
-        np.random.shuffle(masks)
-        print(masks)
-        semi_labels = masks*np.array(self.tmp_instance_labels) +(1-masks)*np.array(self.tmp_instance_real_labels)
-        semi_labels = semi_labels.tolist()
-        masks = (alpha - (alpha-1)*masks).tolist()
+        masks = (1-(np.array(self.tmp_instance_labels)-np.array(self.tmp_instance_real_labels))*0.5)
+        print((masks == 0).sum(), (masks == 0.5).sum(), (masks == 1).sum(),
+              np.array(self.tmp_instance_labels).sum() - np.array(self.tmp_instance_real_labels).sum())
+        if noisy:
+            masks[(masks != 0.5) | (torch.randn(masks.shape) > 0.5).numpy()] = 1 # adding noise to random change
+            print((masks==0).sum(), (masks==0.5).sum(), (masks==1).sum(),
+                  np.array(self.tmp_instance_labels).sum()-np.array(self.tmp_instance_real_labels).sum())
+
+        masks = masks.tolist()
+        semi_labels = self.tmp_instance_labels.tolist()
+        # num = len(self.tmp_instance_labels)
+        # masks = np.ones(num)
+        # masks[:int(self.semi_ratio * num)] = 0  # ratio real(mask=1), (1-ratio) fake(propogation, mask=0)
+        # print(num, self.semi_ratio, int(self.semi_ratio * num))
+        #
+        # np.random.seed(1234)
+        # np.random.shuffle(masks)
+        # print(masks[:10], masks[10:], masks[100])
+        # semi_labels = masks * np.array(self.tmp_instance_labels) + (1 - masks) * np.array(self.tmp_instance_real_labels)
+        # semi_labels = semi_labels.tolist()
+        # masks = ((alpha - (alpha - 1) * masks) * 0.5).tolist()
+        # print(masks)
         return semi_labels, masks
 
     def _scan(self):
@@ -341,7 +355,7 @@ class Camelyon(Dataset):
             semi_label = self.semi_labels[idx]
             semi_index = self.semi_index[idx]
             return img, semi_label, bag_idx, inner_idx, nodule_ratio, real_label, semi_index
-     
+        # print(self.semi_ratio)
         return img, label, bag_idx, inner_idx, nodule_ratio, real_label
 
     def __len__(self):

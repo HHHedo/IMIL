@@ -25,7 +25,7 @@ import torch
 from utils.utility import init_all_dl, init_pn_dl
 # torch.multiprocessing.set_sharing_strategy('file_system')
 
-from scripts import redis_script
+# from scripts import redis_script
 import random
 import pickle
 from data.ltc_test import CAMELYON16

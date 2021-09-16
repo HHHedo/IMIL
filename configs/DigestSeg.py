@@ -132,6 +132,7 @@ class Config(object):
     bag_len_thres = 9
     ssl = False
     semi_ratio = None
+    vis = None
 
     def __init__(self, args):
         self.update(args)
@@ -258,16 +259,19 @@ class Config(object):
             self.train_loader_list = []
             self.test_loader_list = []
         else:  # instance dataloader
-            self.trainset = DigestSeg(train_root, self.train_transform, None, None, database=self.database, semi_ratio=self.semi_ratio)
+            self.trainset = DigestSeg(train_root, self.train_transform, None, None, database=self.database,
+                                      semi_ratio=self.semi_ratio, vis=self.vis)
             self.min_ratios = self.trainset.min_ratios
             self.mean_ratios = self.trainset.mean_ratios
-            self.testset = DigestSeg(test_root, self.test_transform, None, None, database=self.database)
+            self.testset = DigestSeg(test_root, self.test_transform, None, None, database=self.database
+                                     , vis=self.vis)
             self.train_loader = DataLoader(self.trainset, self.batch_size, shuffle=True, num_workers=self.workers)
             self.test_loader = DataLoader(self.testset, self.batch_size, shuffle=False, num_workers=self.workers)
             self.train_loader_list = []
             self.test_loader_list = []
         # only for eval alone
-        self.valset = DigestSeg(train_root, self.test_transform, None, None, database=self.database)
+        self.valset = DigestSeg(train_root, self.test_transform, None, None, database=self.database
+                                , vis=self.vis)
         self.val_loader = DataLoader(self.valset, self.batch_size, shuffle=False, num_workers=self.workers)
 
     def build_model(self):
@@ -375,19 +379,21 @@ class Config(object):
             self.train_mmbank = SPCETensorMemoryBank(self.trainset.bag_num,
                                                      self.trainset.max_ins_num,
                                                      self.trainset.bag_lengths,
+                                                     self.trainset.cls_num,
                                                      self.mmt)
             self.train_mmbank.load(os.path.join(self.logger.logdir, "train_mmbank"), self.resume)
             self.test_mmbank = SPCETensorMemoryBank(self.testset.bag_num,
                                                     self.testset.max_ins_num,
                                                     self.testset.bag_lengths,
+                                                    self.testset.cls_num,
                                                     0.0)
             if self.config == 'DigestSeg':  # AMIL no loading
                 self.test_mmbank.load(os.path.join(self.logger.logdir, "test_mmbank"), self.resume)
 
         elif self.config == 'DigestSegRCE':
             if self.noisy:
-                self.noisy1 = random.uniform(-1, 1)
-                self.noisy2 = random.uniform(0, 1)
+                self.noisy1 = random.uniform(-0.5 * self.mean_ratios, 0.5 * self.mean_ratios)
+                self.noisy2 = random.uniform(-0.5 * self.min_ratios, 0.5 * self.min_ratios + 1e-6)
                 # self.noisy1 = np.random.normal(0, 0.2, size=1)
                 # self.noisy2 = np.random.normal(0, 0.2, size=1)
                 print('mean {}, min {}'.format(self.mean_ratios, self.min_ratios))
@@ -397,11 +403,13 @@ class Config(object):
             self.train_mmbank = RCETensorMemoryBank(self.trainset.bag_num,
                                                     self.trainset.max_ins_num,
                                                     self.trainset.bag_lengths,
+                                                    self.trainset.cls_num,
                                                     self.mmt, self.mean_ratios, self.min_ratios)
             self.train_mmbank.load(os.path.join(self.logger.logdir, "train_mmbank"), self.resume)
             self.test_mmbank = RCETensorMemoryBank(self.testset.bag_num,
                                                    self.testset.max_ins_num,
                                                    self.testset.bag_lengths,
+                                                   self.testset.cls_num,
                                                    0.0)
             self.test_mmbank.load(os.path.join(self.logger.logdir, "test_mmbank"), self.resume)
 
@@ -422,6 +430,7 @@ class Config(object):
             self.train_mmbank = PBTensorMemoryBank(self.trainset.bag_num,
                                                    self.trainset.max_ins_num,
                                                    self.trainset.bag_lengths,
+                                                   self.trainset.cls_num,
                                                    self.mmt,
                                                    self.trainset.instance_in_which_bag,
                                                    self.trainset.instance_in_where,
@@ -434,6 +443,7 @@ class Config(object):
             self.test_mmbank = PBTensorMemoryBank(self.testset.bag_num,
                                                   self.testset.max_ins_num,
                                                   self.testset.bag_lengths,
+                                                  self.trainset.cls_num,
                                                   0.0,
                                                   self.testset.instance_in_which_bag,
                                                   self.testset.instance_in_where,

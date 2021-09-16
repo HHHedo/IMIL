@@ -64,7 +64,7 @@ class DigestSeg(Dataset):
         is a noisy term.)
     """
     def __init__(self, root, ins_transform=None, label_transform=None, cls_label_dict=None, pos_ins_threshold=0, 
-        use_clear_pos_ratios=True, database=None, ssl=None, ssl_transform=None, semi_ratio=None ,alpha=2):
+        use_clear_pos_ratios=True, database=None, ssl=None, ssl_transform=None, semi_ratio=None ,alpha=2, vis=None):
         self.root = root
         self.class_path_list = self.init_cls_path(cls_label_dict)
         self.ins_transform = ins_transform
@@ -107,6 +107,7 @@ class DigestSeg(Dataset):
         self.semi_ratio = semi_ratio
         if self.semi_ratio:
             self.semi_labels, self.semi_index = self.get_semi_label(alpha)
+        self.vis=vis
 
     def get_semi_label(self, alpha):
         num = len(self.tmp_instance_labels)
@@ -271,9 +272,9 @@ class DigestSeg(Dataset):
         if last_name.startswith("("):
             label = float(last_name.rsplit(".", 1)[0].rsplit(",", 1)[0].split("(")[-1].strip())
             label = float(label > self.pos_ins_threshold)
-            return torch.tensor(label)
+            return torch.tensor([label])
         else:
-            return torch.tensor(0.0)
+            return torch.tensor([0.0])
 
     def get_instance_pos_masks_ratios(self, filename):
         last_name = filename.rsplit("_", 1)[-1]
@@ -384,6 +385,8 @@ class DigestSeg(Dataset):
             semi_label = self.semi_labels[idx]
             semi_index = self.semi_index[idx]
             return img, semi_label, bag_idx, inner_idx, nodule_ratio, real_label, semi_index
+        if self.vis:
+            return img, label, bag_idx, [self.instance_c_x[idx], self.instance_c_y[idx],self.instance_paths[idx]], nodule_ratio, real_label
         return img, label, bag_idx, inner_idx, nodule_ratio, real_label
     
     def __len__(self):
@@ -392,6 +395,10 @@ class DigestSeg(Dataset):
     @property
     def bag_num(self):
         return len(self.bag_names)
+
+    @property
+    def cls_num(self):
+        return torch.tensor([1]).int()
 
     @property
     def max_ins_num(self):

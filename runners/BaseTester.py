@@ -16,7 +16,7 @@ import argparse
 from importlib import import_module
 from torch.utils.data import DataLoader
 import numpy as np
-from sklearn.metrics import classification_report, roc_auc_score, roc_curve
+from sklearn.metrics import classification_report, roc_auc_score, roc_curve, average_precision_score
 from utils import utility
 from data.DigestSegBag import DigestSegIns
 from sklearn.metrics import confusion_matrix
@@ -37,7 +37,7 @@ class BaseTester(object):
     
     """
     def __init__(self, backbone, clsnet, test_loader, test_data, loader_list,
-                 memory_bank, logger=None, old_backbone=None,clsnet_causal=None, bs=64, device=torch.device("cuda")):
+                 memory_bank, logger=None, old_backbone=None, clsnet_causal=None, bs=64, device=torch.device("cuda")):
         self.backbone = backbone
         self.clsnet = clsnet
         self.test_data = test_data
@@ -64,6 +64,7 @@ class BaseTester(object):
                 self.memory_bank.update(bag_idx, inner_idx, instance_preds.sigmoid())
             self.logger.save_result(
             "test_mmbank", self.memory_bank.state_dict())
+
     
     def causalconcat_full(self, bs):
         self.backbone.eval()
@@ -178,14 +179,31 @@ class BaseTester(object):
 
     def evaluate(self):
         # read labels
-        bag_labels = self.test_data.bag_labels
+        bag_labels = torch.stack(self.test_data.bag_labels)
         # bag max evaluate
-        bag_max_pred = self.memory_bank.max_pool()
-        self.cls_report(bag_max_pred, bag_labels, "bag_max")
+        bag_max_pred = self.memory_bank.max_pool(self.test_data.bag_lengths)
+        # self.cls_report(bag_max_pred[:,0], bag_labels[:,0], "bag_max")
+
         # bag mean evaluate
         bag_mean_pred = self.memory_bank.avg_pool(self.test_data.bag_lengths)
-        self.cls_report(bag_mean_pred, bag_labels, "bag_avg")
+        # self.cls_report(bag_mean_pred[:,0], bag_labels[:,0], "bag_avg")
+        # bag voting evaluate
+        bag_voting_pred = self.memory_bank.voting_pool(self.test_data.bag_lengths)
+        # self.cls_report(bag_mean_pred[:,0], bag_labels[:,0], "bag_voting")
 
+        AP_list = torch.zeros([3,bag_max_pred.shape[1]])
+        for i in range(bag_max_pred.shape[1]):
+            AP_max = average_precision_score(bag_labels[:, i], bag_max_pred[:, i])
+            AP_mean = average_precision_score(bag_labels[:, i], bag_mean_pred[:, i])
+            AP_voting = average_precision_score(bag_labels[:, i], bag_voting_pred[:, i])
+            AP_list[0,i], AP_list[1,i], AP_list[2,i] = AP_max, AP_mean, AP_voting
+        # print('mAP for max, mean, voting',AP_list.mean(1))
+        self.logger.log_scalar('max' + '/' + 'AP', AP_list.mean(1)[0], print=True)
+        self.logger.log_string(AP_list[0])
+        self.logger.log_scalar('mean' + '/' + 'AP', AP_list.mean(1)[1], print=True)
+        self.logger.log_string(AP_list[1])
+        self.logger.log_scalar('voting' + '/' + 'AP', AP_list.mean(1)[2], print=True)
+        self.logger.log_string(AP_list[2])
         # evaluate instance AUC
         if hasattr(self.test_data, "instance_real_labels"):
             instance_real_labels = self.test_data.instance_real_labels
@@ -201,13 +219,15 @@ class BaseTester(object):
         cls_report = classification_report(y_true, y_pred_hard, output_dict=True)
         print(cls_report)
         auc_score = roc_auc_score(y_true, y_pred)
-
+        AP = average_precision_score(y_true, y_pred)
+        # print(AP)
         self.logger.log_scalar(prefix+'/'+'Accuracy', cls_report['accuracy'], print=True)
         self.logger.log_scalar(prefix+'/'+'Precision', cls_report['1.0']['precision'], print=True)
         self.logger.log_scalar(prefix+'/'+'Recall', cls_report['1.0']['recall'], print=True)
         self.logger.log_scalar(prefix+'/'+'F1', cls_report['1.0']['f1-score'], print=True)
         self.logger.log_scalar(prefix+'/'+'Specificity', cls_report['0.0']['recall'], print=True)
         self.logger.log_scalar(prefix+'/'+'AUC', auc_score, print=True)
+        self.logger.log_scalar(prefix + '/' + 'AP', AP, print=True)
         # self.logger.log_scalar(prefix + '/' + 'AUC', auc_score, print=True)
         print(confusion_matrix(y_true, y_pred_hard))
 
@@ -230,6 +250,68 @@ class BaseTester(object):
         print(cls_report)
         self.logger.log_scalar('ins' + '/' + 'Accuracy', cls_report['accuracy'], print=True)
         print(confusion_matrix(labels, preds))
+
+
+
+    def eval_(self, gs, trainset):
+        # self.backbone = self.logger.load_backbone_fromold(self.backbone, global_step=gs)
+        # self.clsnet = self.logger.load_clsnet_fromold(self.clsnet, global_step=gs)
+        self.backbone = self.logger.load_backbone(self.backbone, global_step=gs)
+        self.clsnet = self.logger.load_clsnet(self.clsnet, global_step=gs)
+        self.backbone.eval()
+        self.clsnet.eval()
+        import pickle
+        # with open('/remote-home/ltc/HisMIL/testset.pickle', 'rb') as f:
+        #     self.testset = pickle.load(f)
+        #     val_loader = DataLoader(self.testset, 256, shuffle=False, num_workers=4)
+        val_loader = DataLoader(trainset, 256, shuffle=True, num_workers=8)
+        preds_list = []
+        bag_index_list = []
+        label_list = []
+        idx_x_list = []
+        idx_y_list = []
+        path_list = []
+        idx_list = []
+        with torch.no_grad():
+            for batch_idx, (imgs, instance_labels,bag_idx, inner_idx, _,most_conf_idx) in enumerate(
+                    tqdm(val_loader, ascii=True, ncols=60)):
+                instance_preds = torch.sigmoid(self.clsnet(self.backbone(imgs.to(self.device))))
+                instance_labels = instance_labels.to(self.device)
+                preds_list.append(instance_preds.cpu().detach())
+                # bag_index_list.append(bag_index.cpu().detach())
+                label_list.append(instance_labels.cpu().detach())
+                idx_list.append(most_conf_idx.cpu().detach())
+                # idx_x_list.append(inner_index[1])
+                # idx_y_list.append(inner_index[2])
+                # path_list.extend(list(inner_index[3]))
+                self.memory_bank.update(bag_idx, inner_idx, instance_preds)
+
+                # if batch_idx >10:
+                #     break
+        preds_tensor = torch.cat(preds_list)
+
+        labels_tensor = torch.cat(label_list)
+        index_tensor = torch.cat(idx_list)
+
+        selected_preds = preds_tensor[index_tensor==1]
+        selected_labels = labels_tensor[index_tensor==1]
+        bag_max_pred = self.memory_bank.max_pool(trainset.bag_lengths)
+        # self.cls_report(bag_max_pred[:,0], bag_labels[:,0], "bag_max")
+
+        # bag mean evaluate
+        bag_mean_pred = self.memory_bank.avg_pool(trainset.bag_lengths)
+        # self.cls_report(bag_mean_pred[:,0], bag_labels[:,0], "bag_avg")
+        # bag voting evaluate
+        bag_voting_pred = self.memory_bank.voting_pool(trainset.bag_lengths)
+        bag_labels = torch.stack(trainset.bag_labels)
+        AP_list = torch.zeros([4, bag_max_pred.shape[1]])
+        for i in range(bag_max_pred.shape[1]):
+            AP_max = average_precision_score(bag_labels[:, i], bag_max_pred[:, i])
+            AP_mean = average_precision_score(bag_labels[:, i], bag_mean_pred[:, i])
+            AP_voting = average_precision_score(bag_labels[:, i], bag_voting_pred[:, i])
+            AP_selected = average_precision_score(selected_labels[:, i], selected_preds[:, i])
+            AP_list[0, i], AP_list[1, i], AP_list[2, i] , AP_list[3, i] = AP_max, AP_mean, AP_voting, AP_selected
+        print(AP_list.mean(1))
 
         
 

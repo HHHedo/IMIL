@@ -11,22 +11,21 @@ import torch
 # torch.multiprocessing.set_sharing_strategy('file_system')
 import torch.nn as nn
 import pandas as pd
-# import seaborn as sns
+import seaborn as sns
 import torch.nn.functional as F
-import utils.utility as utility
-from utils.logger import Logger
-import argparse
-from importlib import import_module
+# import utils.utility as utility
+# from utils.logger import Logger
+# import argparse
+# from importlib import import_module
 from torch.utils.data import DataLoader
 import numpy as np
 import torch.optim as optim
-from sklearn.metrics import classification_report, roc_auc_score, roc_curve 
-from data.DigestSegBag import DigestSegIns
+from sklearn.metrics import classification_report, roc_auc_score, roc_curve , average_precision_score, accuracy_score
 import matplotlib.pyplot as plt
 import random
-from data.EMDigestSeg import EMDigestSeg
+# from data.EMDigestSeg import EMDigestSeg
 from utils.utility import AverageMeter, accuracy, ProgressMeter
-from sklearn.metrics import confusion_matrix ,roc_curve
+from sklearn.metrics import confusion_matrix,roc_curve
 import datetime
 
 class BaseTrainer(object):
@@ -120,7 +119,11 @@ class BaseTrainer(object):
             ##instancee-level prediction loss
             if self.configs == 'DigestSeg':
                 # loss = self.criterion(instance_preds, instance_labels.long())
-                 loss = self.criterion(instance_preds, instance_labels.view(-1, 1))
+                # digest
+                #  loss = self.criterion(instance_preds, instance_labels.view(-1, 1))
+                # pascal
+                loss = self.criterion(instance_preds, instance_labels)
+
 
             elif self.configs == 'DigestSegRCE':
                 # pos_weight is not used
@@ -128,6 +131,7 @@ class BaseTrainer(object):
                                                                  preds=instance_preds.sigmoid(),
                                                                  cur_epoch=epoch,
                                                                  )
+                # print(weight.shape,instance_preds.shape, instance_labels.view(-1, 1).shape, )
                 loss = self.criterion(instance_preds, instance_labels.view(-1, 1),
                                                           weight=weight,
                                                           )
@@ -143,21 +147,30 @@ class BaseTrainer(object):
                                                           reduction='sum'
                                                           )/weight.sum()
 
-            acc = (torch.ge(instance_preds.sigmoid(), 0.5).float().squeeze(1)==instance_labels).sum().float()/len(real_ins_labels)
+            #digest
+            # acc = (torch.ge(instance_preds.sigmoid(), 0.5).float().squeeze(1)==instance_labels).sum().float()/len(real_ins_labels)
+
+            # acc = (torch.ge(instance_preds.sigmoid(), 0.5).float().squeeze(1) == instance_labels).sum().float() / len(
+            #     real_ins_labels)
             # acc = (torch.argmax(instance_preds, dim=1)== instance_labels).sum().float() / len(
-                # instance_labels)
+            #     instance_labels)
             losses.update(loss.item(), imgs.size(0))
-            ACC.update(acc, imgs.size(0))
+
+            # digest
+            # ACC.update(acc, imgs.size(0))
+
             ## update memory bank
             self.memory_bank.update(bag_index, inner_index, instance_preds.sigmoid(), epoch)
             # self.memory_bank.update(bag_index, inner_index, softmax(instance_preds)[:,1], epoch)
             loss.backward()
             self.optimizer.step()
             show_loss.append(loss.item())
-            preds_list.append(instance_preds.sigmoid().cpu().detach())
-            # preds_list.append(softmax(instance_preds)[:,1].cpu().detach())
-            bag_index_list.append(bag_index.cpu().detach())
-            label_list.append(real_ins_labels.cpu().detach())
+
+            # digest
+            # preds_list.append(instance_preds.sigmoid().cpu().detach())
+            # # preds_list.append(softmax(instance_preds)[:,1].cpu().detach())
+            # bag_index_list.append(bag_index.cpu().detach())
+            # label_list.append(real_ins_labels.cpu().detach())
 
             # if batch_idx  % 1000 == 0:
             #     progress.display(batch_idx)
@@ -170,10 +183,10 @@ class BaseTrainer(object):
 
         #print info
         progress.display(batch_idx)
-        preds_tensor = torch.cat(preds_list)
-        bag_index_tensor = torch.cat(bag_index_list)
-        labels_tensor = torch.cat(label_list)
-        self.cal_preds_in_training(preds_tensor, bag_index_tensor, labels_tensor, epoch)
+        # preds_tensor = torch.cat(preds_list)
+        # bag_index_tensor = torch.cat(bag_index_list)
+        # labels_tensor = torch.cat(label_list)
+        # self.cal_preds_in_training(preds_tensor, bag_index_tensor, labels_tensor, epoch)
         #.unsqueeze(1)
         avg_loss = sum(show_loss) / (len(show_loss))
         self.logger.log_scalar("loss", avg_loss, print=True)
@@ -187,6 +200,7 @@ class BaseTrainer(object):
                 print('lr changs wrongly')
         
         ##after epoch memory bank operation
+        # digest
         self.memory_bank.update_rank()
         self.memory_bank.update_epoch()
         ##saving
@@ -306,7 +320,8 @@ class BaseTrainer(object):
                 tqdm(self.train_loader, ascii=True, ncols=60,)):
             # print(imgs.shape, real_ins_labels.shape)
             # print(bag_index, inner_index, bag_index.type(),bag_index.shape, inner_index.shape)
-            # break
+            # if batch_idx > 1 :
+            #     break
             self.logger.update_iter()
             self.optimizer.zero_grad()
             # instance_preds, cluster_preds ,cluster_labels = self.clsnet(self.backbone(imgs.to(self.device)), bag_index, inner_index, self.old_backbone, imgs.to(self.device))
@@ -355,7 +370,7 @@ class BaseTrainer(object):
         bag_index_tensor = torch.cat(bag_index_list)
         labels_tensor = torch.cat(label_list)
         # print(preds_tensor, bag_index_tensor, labels_tensor)
-        self.cal_preds_in_training(preds_tensor, bag_index_tensor, labels_tensor, epoch)
+        # self.cal_preds_in_training(preds_tensor, bag_index_tensor, labels_tensor, epoch)
         avg_loss = sum(show_loss) / (len(show_loss))
         self.logger.log_scalar("loss", avg_loss, print=True)
         self.logger.clear_inner_iter()
@@ -455,7 +470,7 @@ class BaseTrainer(object):
 
         ##after epoch memory bank operation
         # self.memory_bank.Gaussian_smooth()
-        self.memory_bank.update_rank()
+        # self.memory_bank.update_rank()
         self.memory_bank.update_epoch()
         ##saving
         if self.logger.global_step % self.save_interval == 0:
@@ -637,7 +652,10 @@ class BaseTrainer(object):
             instance_preds = self.clsnet(self.backbone(imgs.to(self.device)))
             instance_labels = instance_labels.to(self.device)
 
-            loss = self.criterion(instance_preds, instance_labels.view(-1, 1))
+            ## Digestpath
+            # loss = self.criterion(instance_preds, instance_labels.view(-1, 1))
+            ## Digestpath
+            loss = self.criterion(instance_preds, instance_labels, nodule_ratios.cuda())
 
             loss.backward()
             self.optimizer.step()
@@ -646,57 +664,66 @@ class BaseTrainer(object):
             bag_index_list.append(bag_index.cpu().detach())
             label_list.append(real_ins_labels.cpu().detach())
             # print(instance_labels.sum(), real_ins_labels.sum())
-
-            # if batch_idx > 8:
+            #
+            # if batch_idx > 1:
             # #     # import pdb
             # #     # pdb.set_trace()
             # #     # print(bag_index_list)
             # #     # print(label_list)
             #     break
 
-        # print info
+        ## Digestpath
+        ## print info
         if not debug:
-            preds_tensor = torch.cat(preds_list)
-            bag_index_tensor = torch.cat(bag_index_list)
-            labels_tensor = torch.cat(label_list)
-            self.cal_preds_in_training(preds_tensor, bag_index_tensor, labels_tensor, epoch)
-            print('save imgaes')
+        #     preds_tensor = torch.cat(preds_list)
+        #     bag_index_tensor = torch.cat(bag_index_list)
+        #     labels_tensor = torch.cat(label_list)
+        #     self.cal_preds_in_training(preds_tensor, bag_index_tensor, labels_tensor, epoch)
+        #     print('save imgaes')
             avg_loss = sum(show_loss) / (len(show_loss))
             self.logger.log_scalar("loss", avg_loss, print=True)
             self.logger.clear_inner_iter()
-            if self.lrsch is not None:
-                if isinstance(self.lrsch, optim.lr_scheduler.ReduceLROnPlateau):
-                    self.lrsch.step(avg_loss)
-                    print('lr changs wrongly')
-                else:
-                    self.lrsch.step()
-                    print('lr changs wrongly')
+        #     if self.lrsch is not None:
+        #         if isinstance(self.lrsch, optim.lr_scheduler.ReduceLROnPlateau):
+        #             self.lrsch.step(avg_loss)
+        #             print('lr changs wrongly')
+        #         else:
+        #             self.lrsch.step()
+        #             print('lr changs wrongly')
+        ## Digestpath
 
         ##after epoch memory bank operation
         # if (epoch+1) % 2 == 0:
         # self.EMCA_eval(epoch, configs)
         # self.memory_bank.Gaussian_smooth()
         # self.memory_bank.update_rank()
-        if configs.config == 'DigestSegEMCA':
-            select_pos_idx = self.EMCA_eval(epoch, configs)
-        elif configs.config == 'DigestSegEMCAV2':
-            select_pos_idx = self.EMCA_evalv2(epoch, configs)
-        elif configs.config == 'DigestSegEMnocahalf':
-            select_pos_idx = self.EMCA_noca_half(epoch, configs)
-        elif configs.config == 'DigestSegEMnocamean':
-            select_pos_idx = self.EMCA_noca_mean(epoch, configs)
-            # select_pos_idx = self.EMCA_noca(epoch, configs)
-        elif configs.config == 'DigestSegGT':
-            select_pos_idx = self.EMCA_globalT(epoch, configs)
-        elif configs.config == 'DigestSegGM':
-            select_pos_idx = self.EMCA_globalM(epoch, configs)
-        self.trainset.generate_new_data(select_pos_idx)
-        # self.trainset = EMDigestSeg(os.path.join(configs.data_root, "train"),
-        #                             configs.train_transform, None, None,
-        #                             pos_select_idx=select_pos_idx,
-        #                             database=configs.database)
-        # self.train_loader = DataLoader(self.trainset, configs.batch_size, shuffle=True, num_workers=configs.workers)
-        self.memory_bank.update_epoch()
+        new_labels = None
+        weight = None
+        epoch_thres = 2
+        if epoch >= epoch_thres:
+            if configs.config == 'DigestSegEMCA':
+                select_pos_idx = self.EMCA_eval(epoch, configs)
+            elif configs.config == 'DigestSegEMCAV2':
+                select_pos_idx, new_labels, weight = self.EMCA_evalv2(epoch, configs, epoch_thres)
+                # select_pos_idx = self.EMCA_evalv2(epoch, configs)
+            elif configs.config == 'DigestSegEMnocahalf':
+                select_pos_idx = self.EMCA_noca_half(epoch, configs)
+            elif configs.config == 'DigestSegEMnocamean':
+                select_pos_idx = self.EMCA_noca_mean(epoch, configs)
+                # select_pos_idx = self.EMCA_noca(epoch, configs)
+            elif configs.config == 'DigestSegGT':
+                select_pos_idx = self.EMCA_globalT(epoch, configs)
+            elif configs.config == 'DigestSegGM':
+                select_pos_idx = self.EMCA_globalM(epoch, configs)
+            self.trainset.generate_new_data(select_pos_idx, new_labels, weight)
+            # self.trainset.generate_new_data(select_pos_idx)
+            # self.trainset = EMDigestSeg(os.path.join(configs.data_root, "train"),
+            #                             configs.train_transform, None, None,
+            #                             pos_select_idx=select_pos_idx,
+            #                             database=configs.database)
+            # self.train_loader = DataLoader(self.trainset, configs.batch_size, shuffle=True, num_workers=configs.workers)
+
+            self.memory_bank.update_epoch()
         ##saving
         if self.logger.global_step % self.save_interval == 0:
             self.logger.save(self.backbone, self.clsnet, self.optimizer)
@@ -741,83 +768,107 @@ class BaseTrainer(object):
                 selcted_idx[bag_idx_tensor, inner_idx_tensor] = 0
             # print(weight.sum())
             return selcted_idx
-    #
-    #     # - EM based Ca
-    # - EM based Ca
 
-    def EMCA_evalv2(self, epoch, configs, epoch_thres=1):
+    def EMCA_evalv2(self, epoch, configs, epoch_thres=2):
         self.backbone.eval()
         self.clsnet.eval()
         # configs.ignore_goon = True
         # epoch_thres=0
+
         with torch.no_grad():
             for batch_idx, (imgs, instance_labels, bag_index, inner_index, nodule_ratios, real_ins_labels) in enumerate(
                     tqdm(self.val_loader, ascii=True, ncols=60)):
                 # 1. forward and update memory bank
                 instance_preds = self.clsnet(self.backbone(imgs.to(self.device)))
                 self.memory_bank.update(bag_index, inner_index, instance_preds.sigmoid(), epoch) #bag-level
-                # if batch_idx > 10:
+                # if batch_idx > 100:
                 #     break
             # 2.get mean preds of each bag
-            mean_preds = self.memory_bank.get_mean()
+            # k = self.memory_bank.ignore_num
+            # if epoch >= epoch_thres:
+            k = ((epoch - epoch_thres) * configs.ignore_step)
+            # for i in range(len(self.memory_bank.ignore_goon)):
+            #     if (self.memory_bank.ignore_goon[i] and epoch >= epoch_thres:
+            #         # mask of the rest
+            #         k[i] = (epoch - epoch_thres) * configs.ignore_step
+            #     else:
+            #         k[i] = self.memory_bank.ignore_num[i]  #defalut k=0, using all
+            pos_capreds_new, selected_idx, new_labels, weight = self.memory_bank.select_calibrated(k, configs.ignore_thres, configs.ignore_step, torch.stack(self.valset.bag_labels))
+            self.logger.log_string('Ignore num:')
+            self.logger.log_string(self.memory_bank.ignore_num)
+            self.logger.log_string('labels num')
+            self.logger.log_string(selected_idx.sum())
+            self.logger.log_string('weight sum')
+            self.logger.log_string(weight.sum())
+
+            # if pos_capreds_new > configs.ignore_thres and (epoch - epoch_thres) == 1:
+            #     epoch_thres += 1
+            # elif pos_capreds_new < configs.ignore_thres:
+            #     self.memory_bank.ignore_num = k
+            # else:
+            #     configs.ignore_goon = False
+
+            return selected_idx, new_labels, weight
+            # 2.get mean preds of each bag
+            mean_preds = self.memory_bank.get_mean().unsqueeze(-1)
             # 3.Calibration & select pos bag & select instance(not -1)
             calibrated_preds = self.memory_bank.dictionary/mean_preds
-            calibrated_preds_minus = self.memory_bank.dictionary/mean_preds + self.memory_bank.dictionary
-            # original preds
-            # y = self.valset.instance_real_labels
-            bag_accumulated_length = np.cumsum(np.array(self.valset.bag_lengths))
-            bag_accumulated_length = np.insert(bag_accumulated_length, 0, 0)
-            return_list = []
-            y_list = []
-            for idx, bag in enumerate(self.memory_bank.dictionary):
-                if self.memory_bank.bag_pos_ratio_tensor[idx]>0:
-                    return_list.extend(list(bag[:self.valset.bag_lengths[idx]].cpu()))
-                    y_list.extend(self.valset.instance_real_labels[bag_accumulated_length[idx]:bag_accumulated_length[idx+1]])
-            scores = return_list
-            y = y_list
-            # scores = self.memory_bank.to_list(self.valset.bag_lengths)
-            AUC_ori = roc_auc_score(y, scores)
-            fpr_o, tpr_o, thresholds_o = roc_curve(y, scores, pos_label=1)
-            # calibrated 
-            return_list = []
-            y_list = []
-            for idx, bag in enumerate(calibrated_preds):
-                if self.memory_bank.bag_pos_ratio_tensor[idx]>0:
-                    return_list.extend(list(bag[:self.valset.bag_lengths[idx]].cpu()))
-                    y_list.extend(self.valset.instance_real_labels[bag_accumulated_length[idx]:bag_accumulated_length[idx+1]])
-            # y = self.valset.instance_real_labels
-            scores = return_list
-            y = y_list
-            AUC_ca = roc_auc_score(y, scores)
-            fpr_c, tpr_c, thresholds_c = roc_curve(y, scores, pos_label=1)
-            # calibrated_minus
-            return_list = []
-            y_list = []
-            for idx, bag in enumerate(calibrated_preds_minus):
-                if self.memory_bank.bag_pos_ratio_tensor[idx]>0:
-                    return_list.extend(list(bag[:self.valset.bag_lengths[idx]].cpu()))
-                    y_list.extend(self.valset.instance_real_labels[bag_accumulated_length[idx]:bag_accumulated_length[idx+1]])
-            # y = self.valset.instance_real_labels
-            scores = return_list
-            y = y_list
-            AUC_ca_m = roc_auc_score(y, scores)
-            fpr_m, tpr_m, thresholds_c = roc_curve(y, scores, pos_label=1)
-
-
-            print('AUC before/after Calibration divide/minus: {}/{}/{}'.format(AUC_ori,AUC_ca, AUC_ca_m))
-            # draw ROC
-            plt.title('ROC curve')
-            plt.plot(fpr_o, tpr_o, label='Before calibration')
-            plt.plot(fpr_c, tpr_c, label='After calibration divide')
-            plt.plot(fpr_m, tpr_m, label='After calibration minus')
-            plt.xlabel('False positive rate')
-            plt.ylabel('True positive rate')
-            plt.xlim([-0.05,1.05])
-            plt.ylim([-0.05,1.05])
-            plt.legend(loc="lower right") 
-            plt.savefig(os.path.join(self.logger.logdir, 'preds_figs', 'ROC_figs{}.png'.format(epoch)))
-        # plt.show()
-            plt.close()
+        #     calibrated_preds_minus = self.memory_bank.dictionary/mean_preds + self.memory_bank.dictionary
+        #     # original preds
+        #     # y = self.valset.instance_real_labels
+        #     bag_accumulated_length = np.cumsum(np.array(self.valset.bag_lengths))
+        #     bag_accumulated_length = np.insert(bag_accumulated_length, 0, 0)
+        #     return_list = []
+        #     y_list = []
+        #     for idx, bag in enumerate(self.memory_bank.dictionary):
+        #         if self.memory_bank.bag_pos_ratio_tensor[idx]>0:
+        #             return_list.extend(list(bag[:self.valset.bag_lengths[idx]].cpu()))
+        #             y_list.extend(self.valset.instance_real_labels[bag_accumulated_length[idx]:bag_accumulated_length[idx+1]])
+        #     scores = return_list
+        #     y = y_list
+        #     # scores = self.memory_bank.to_list(self.valset.bag_lengths)
+        #     AUC_ori = roc_auc_score(y, scores)
+        #     fpr_o, tpr_o, thresholds_o = roc_curve(y, scores, pos_label=1)
+        #     # calibrated
+        #     return_list = []
+        #     y_list = []
+        #     for idx, bag in enumerate(calibrated_preds):
+        #         if self.memory_bank.bag_pos_ratio_tensor[idx]>0:
+        #             return_list.extend(list(bag[:self.valset.bag_lengths[idx]].cpu()))
+        #             y_list.extend(self.valset.instance_real_labels[bag_accumulated_length[idx]:bag_accumulated_length[idx+1]])
+        #     # y = self.valset.instance_real_labels
+        #     scores = return_list
+        #     y = y_list
+        #     AUC_ca = roc_auc_score(y, scores)
+        #     fpr_c, tpr_c, thresholds_c = roc_curve(y, scores, pos_label=1)
+        #     # calibrated_minus
+        #     return_list = []
+        #     y_list = []
+        #     for idx, bag in enumerate(calibrated_preds_minus):
+        #         if self.memory_bank.bag_pos_ratio_tensor[idx]>0:
+        #             return_list.extend(list(bag[:self.valset.bag_lengths[idx]].cpu()))
+        #             y_list.extend(self.valset.instance_real_labels[bag_accumulated_length[idx]:bag_accumulated_length[idx+1]])
+        #     # y = self.valset.instance_real_labels
+        #     scores = return_list
+        #     y = y_list
+        #     AUC_ca_m = roc_auc_score(y, scores)
+        #     fpr_m, tpr_m, thresholds_c = roc_curve(y, scores, pos_label=1)
+        #
+        #
+        #     print('AUC before/after Calibration divide/minus: {}/{}/{}'.format(AUC_ori,AUC_ca, AUC_ca_m))
+        #     # draw ROC
+        #     plt.title('ROC curve')
+        #     plt.plot(fpr_o, tpr_o, label='Before calibration')
+        #     plt.plot(fpr_c, tpr_c, label='After calibration divide')
+        #     plt.plot(fpr_m, tpr_m, label='After calibration minus')
+        #     plt.xlabel('False positive rate')
+        #     plt.ylabel('True positive rate')
+        #     plt.xlim([-0.05,1.05])
+        #     plt.ylim([-0.05,1.05])
+        #     plt.legend(loc="lower right")
+        #     plt.savefig(os.path.join(self.logger.logdir, 'preds_figs', 'ROC_figs{}.png'.format(epoch)))
+        # # plt.show()
+        #     plt.close()
             pos_calibrated_preds = calibrated_preds[self.memory_bank.bag_pos_ratio_tensor>0] #postive_bag
             pos_calibrated_preds_valid = pos_calibrated_preds[pos_calibrated_preds>0] #postive_instance, ignore -1
 
@@ -831,7 +882,7 @@ class BaseTrainer(object):
                 k = self.memory_bank.ignore_num
             selected_idx = torch.ones_like(self.memory_bank.dictionary).cuda()
             selected_idx[self.memory_bank.dictionary == -1] = 0 # chosen all as default
-            self.logger.log_string('{:.3}%/{} Ignored samples.'.format(k/pos_ins_num.float()*100, k))
+            self.logger.log_string('{}%/{} Ignored samples.'.format(k/pos_ins_num.float()*100, k))
             if k != 0:
                 # Choose the top-k for positive and all negative instances
                 k_preds, _ = torch.topk(pos_calibrated_preds_valid, k, dim=0, largest=False)
@@ -1129,32 +1180,37 @@ class BaseTrainer(object):
             instance_preds = self.clsnet(feat)
             instance_labels = instance_labels.to(self.device)
             bag_index = bag_index.to(self.device)
-            loss_ce = self.criterion['CE'](instance_preds, instance_labels.view(-1, 1))
-            loss_center = self.criterion['Center'](bag_index, feat)
-            loss = loss_ce + 0.01*loss_center
+            ##digest
+            # loss_ce = self.criterion['CE'](instance_preds, instance_labels.view(-1, 1))
+            ##digest
+            loss_ce = loss = self.criterion(instance_preds, instance_labels)
+            # loss_center = self.criterion['Center'](bag_index, feat)
+            # loss = loss_ce + 0.01*loss_center
+            loss = loss_ce
             # print(loss_center)
             loss.backward()
             self.optimizer.step()
             show_loss_ce.append(loss_ce.item())
-            show_loss_center.append(loss_center.item())
+            # show_loss_center.append(loss_center.item())
             preds_list.append(instance_preds.sigmoid().cpu().detach())
             bag_index_list.append(bag_index.cpu().detach())
             label_list.append(real_ins_labels.cpu().detach())
             # if batch_idx>1:
             #     debug = True
             #     break
-
-        # print info
-        if not debug:
-            preds_tensor = torch.cat(preds_list)
-            bag_index_tensor = torch.cat(bag_index_list)
-            labels_tensor = torch.cat(label_list)
-            self.cal_preds_in_training(preds_tensor, bag_index_tensor, labels_tensor, epoch)
-            avg_ce_loss = sum(show_loss_ce) / (len(show_loss_ce))
-            avg_center_loss = sum(show_loss_center)/ (len(show_loss_center))
-            self.logger.log_scalar("loss", avg_ce_loss, print=True)
-            self.logger.log_scalar("loss", avg_center_loss, print=True)
-            self.logger.clear_inner_iter()
+        # ##digest
+        # # print info
+        # if not debug:
+        #     preds_tensor = torch.cat(preds_list)
+        #     bag_index_tensor = torch.cat(bag_index_list)
+        #     labels_tensor = torch.cat(label_list)
+        #     self.cal_preds_in_training(preds_tensor, bag_index_tensor, labels_tensor, epoch)
+        #     avg_ce_loss = sum(show_loss_ce) / (len(show_loss_ce))
+        #     # avg_center_loss = sum(show_loss_center)/ (len(show_loss_center))
+        #     self.logger.log_scalar("loss", avg_ce_loss, print=True)
+        #     # self.logger.log_scalar("loss", avg_center_loss, print=True)
+        #     self.logger.clear_inner_iter()
+        # ##digest
 
 
         ##after epoch memory bank operation
@@ -1187,7 +1243,7 @@ class BaseTrainer(object):
                 self.memory_bank.update(bag_index, inner_index, instance_preds.sigmoid(), epoch)
                 # if batch_idx >1:
                 #     break
-        selected_idx = self.memory_bank.select_topk()
+        selected_idx = self.memory_bank.select_topk(torch.stack(self.valset.bag_labels))
         return selected_idx
 
 
@@ -1467,8 +1523,6 @@ class BaseTrainer(object):
 
     # showing the motivation
     def eval(self, gs, trainset):
-        # self.backbone = self.logger.load_backbone_fromold(self.backbone, global_step=gs)
-        # self.clsnet = self.logger.load_clsnet_fromold(self.clsnet, global_step=gs)
         self.backbone = self.logger.load_backbone(self.backbone, global_step=gs)
         self.clsnet = self.logger.load_clsnet(self.clsnet, global_step=gs)
         self.backbone.eval()
@@ -1488,11 +1542,11 @@ class BaseTrainer(object):
                 preds_list.append(instance_preds)
                 bag_index_list.append(bag_index)
                 label_list.append(real_ins_labels)
-                idx_x_list.append(inner_index[1])
-                idx_y_list.append(inner_index[2])
-                path_list.extend(list(inner_index[3]))
+                # idx_x_list.append(inner_index[1])
+                # idx_y_list.append(inner_index[2])
+                # path_list.extend(list(inner_index[3]))
 
-                # if batch_idx >10:
+                # if batch_idx >5:
                 #     break
         preds_tensor = torch.cat(preds_list)
         bag_index_tensor = torch.cat(bag_index_list)
@@ -1507,98 +1561,147 @@ class BaseTrainer(object):
                               torch.stack(trainset.bag_pos_ratios)[i] != 0]
         bag_selection_in_list = [binary_mask_tensor[bag_index_tensor == i] for i in range(bag_index_tensor.max() + 1) if
                                  torch.stack(trainset.bag_pos_ratios)[i] != 0]
-        path_in_list = [np.array(path_list)[bag_index_tensor == i] for i in range(bag_index_tensor.max() + 1) if
-                                 torch.stack(trainset.bag_pos_ratios)[i] != 0]
-        selection_acc_in_list = [
-            (bag_selection_in_list[i] == bag_labels_in_list[i]).sum().float() / len(bag_selection_in_list[i]) for i in
-            range(len(bag_selection_in_list))]
+        # path_in_list = [np.array(path_list)[bag_index_tensor == i] for i in range(bag_index_tensor.max() + 1) if
+        #                          torch.stack(trainset.bag_pos_ratios)[i] != 0]
+        # selection_acc_in_list = [
+        #     (bag_selection_in_list[i] == bag_labels_in_list[i]).sum().float() / len(bag_selection_in_list[i]) for i in
+        #     range(len(bag_selection_in_list))]
 
-        # e mean predictions of bags
-        bag_pred_ratio = torch.stack([preds_tensor[bag_index_tensor == i].mean() for i in range(bag_index_tensor.max()+1)])
-        # the mean predictions of positive instance of bags
-        bag_pos_pred_mean = torch.stack(
-            [preds_tensor[bag_index_tensor == i].squeeze(1)[labels_tensor[bag_index_tensor == i] == 1].mean()
-             for i in range(bag_index_tensor.max() + 1)])
-        # the mean predictions of negative instance of bags
-        bag_neg_pred_mean = torch.stack(
-            [preds_tensor[bag_index_tensor == i].squeeze(1)[labels_tensor[bag_index_tensor == i] == 0].mean()
-             for i in range(bag_index_tensor.max() + 1)])
-        # the predictions of all positive instances of each bag
-        bag_pos_pred = [preds_tensor[bag_index_tensor == i].squeeze(1)[labels_tensor[bag_index_tensor == i] == 1]
-             for i in range(bag_index_tensor.max() + 1)]
-        # the predictions of all negative instances of each bag
-        bag_neg_pred = [preds_tensor[bag_index_tensor == i].squeeze(1)[labels_tensor[bag_index_tensor == i] == 0]
-             for i in range(bag_index_tensor.max() + 1)]
-        # expand the mean predictions of bags as bag_pos_pred
-        bag_pred_ratio_pos = torch.cat(
-            [preds_tensor[bag_index_tensor == i].mean().expand_as(bag_pos_pred[i]) for i in range(bag_index_tensor.max() + 1)])
-        # expand the mean predictions of bags as bag_neg_pred
-        bag_pred_ratio_neg = torch.cat(
-            [preds_tensor[bag_index_tensor == i].mean().expand_as(bag_neg_pred[i]) for i in
-             range(bag_index_tensor.max() + 1)])
-        bag_pos_pred = torch.cat(bag_pos_pred)
-        bag_neg_pred = torch.cat(bag_neg_pred)
-
-        # bag_preds_in_list = [preds_tensor[bag_index_tensor == i].squeeze(1) for i in range(bag_index_tensor.max() + 1) if torch.stack(trainset.bag_pos_ratios)[i]!=0]
-
-
-        x = bag_pred_ratio.cpu().numpy() #mean preds
-        y = bag_pos_pred_mean.cpu().numpy() #mean preds of pos
-        z = bag_neg_pred_mean.cpu().numpy() #mean preds of neg
-        w = bag_pos_ratio.cpu().numpy() # pos ratio
-        #only choose pos bag
-        x = x[bag_pos_ratio!=0]
-        y = y[bag_pos_ratio!=0]
-        z = z[bag_pos_ratio!=0]
-        w = w[bag_pos_ratio!=0]
-        n = np.zeros_like(x)
-        p = np.ones_like(x)
-        num = np.arange(len(p))
-
-        bag_preds = np.concatenate((x, x))
-        partial_instance_preds = np.concatenate((y, z)) # pos ,neg
-        bag_pos_ratio = np.concatenate((w, w))
-        pos_or_neg = np.concatenate((p, n))
-        bag_num = np.concatenate((num, num))
-        calibrated_partial_instance_preds = partial_instance_preds/bag_preds
-
-
-        data = {'Bag scores': bag_preds,
-                'Subbag scores': partial_instance_preds,
-                'Ratio': bag_pos_ratio,
-                'Label': pos_or_neg,
-                'Bag index': bag_num}
+        acc_pos_list = []
+        acc_neg_list = []
+        acc_all_list = []
+        for i in range(bag_index_tensor.max() + 1):
+            if bag_pos_ratio[i] != 0:
+                bag_preds = preds_tensor[bag_index_tensor == i].cpu().numpy()
+                bag_labels = labels_tensor[bag_index_tensor == i].cpu().numpy()
+                if (bag_labels == 0).sum() != 0:
+                    bag_pos_preds = bag_preds[bag_labels == 1]
+                    bag_neg_preds = bag_preds[bag_labels == 0]
+                    acc_pos_list.append(bag_pos_preds.mean())
+                    acc_neg_list.append(bag_neg_preds.mean())
+                    acc_all_list.append(bag_preds.mean())
+        x = np.array(acc_all_list)
+        y = np.array(acc_pos_list)
+        z = np.array(acc_neg_list)
+        # sort by x
+        idx = np.argsort(x)
+        x, y, z = x[idx], y[idx], z[idx]
+        # sampling 100
+        tmp_idx = np.zeros_like(x)
+        tmp_idx[:100] = 1
+        np.random.shuffle(tmp_idx)
+        x, y, z = x[tmp_idx == 1], y[tmp_idx == 1], z[tmp_idx == 1]
+        bag_idx = np.arange(len(x))
+        # label
+        mean_pos_one = ['Positive'] * len(x)
+        mean_neg_one = ['Negative'] * len(x)
+        bag_preds = np.concatenate((y, z))
+        bag_idx = np.concatenate((bag_idx, bag_idx))
+        pos_or_neg = np.concatenate((mean_pos_one, mean_neg_one))
+        calibrated_partial_instance_preds = bag_preds / np.concatenate((x, x))
+        data = {'Average scores': bag_preds,
+                'Bag index': bag_idx,
+                'Reweighted average scores': calibrated_partial_instance_preds,
+                'Instance label': pos_or_neg, }
         df = pd.DataFrame(data)
         # markers = {"0.0": "s", "1.0": "X"}
-        sns.scatterplot(data=df, x="Bag scores", y="Subbag scores", hue='Bag index',
-                        style='Label', size=np.ones_like(bag_preds), sizes=(100, 100),
+        # plt.figure(figsize=(12, 6))
+        sns.scatterplot(data=df, x="Bag index", y="Average scores", hue='Bag index',
+                        style='Instance label', s=100
                         )
-        plt.savefig(os.path.join(self.logger.logdir,  "{}.png".format('ori')))
+        ax = plt.gca()
+        # ax.xaxis.set_ticks_position('top')
+        # ax.xaxis.set_label_position('top')
+        # # 把x轴的主刻度设置为1的倍数
+        ax.spines['top'].set_color('grey')
+        ax.spines['right'].set_color('grey')
+        ax.spines['bottom'].set_color('grey')
+        ax.spines['left'].set_color('grey')
+        plt.tight_layout()
+        # plt.savefig('AbAug.png', dpi=600)
+        plt.xlabel('Bag index sorted by average scores of all instances', fontsize=15)
+        # plt.xlabel('', fontsize=15)
+        plt.ylabel('Average scores', fontsize=15)
+        plt.xticks(fontsize=12)
+        # plt.xticks([])
+        plt.yticks(fontsize=12)
+        plt.savefig(os.path.join(self.logger.logdir, "{}.png".format('ori')), dpi=600)
+        # plt.legend(loc=2)
         plt.show()
-
-        data = {'Bag scores': bag_preds,
-                'Subbag scores': calibrated_partial_instance_preds,
-                'Ratio': bag_pos_ratio,
-                'Label': pos_or_neg,
-                'Bag index': bag_num}
+        data = {'Average scores': bag_preds,
+                'Bag index': bag_idx,
+                'Reweighted average scores': calibrated_partial_instance_preds,
+                'Instance label': pos_or_neg, }
         df = pd.DataFrame(data)
         # markers = {"0.0": "s", "1.0": "X"}
-        sns.scatterplot(data=df, x="Bag scores", y="Subbag scores", hue='Bag index',
-                        style='Label', size=np.ones_like(bag_preds), sizes=(100, 100),
+        # plt.figure(figsize=(12, 6))
+        sns.scatterplot(data=df, x="Bag index", y="Reweighted average scores", hue='Bag index',
+                        style='Instance label', s=100, legend=False,
                         )
-        plt.savefig(os.path.join(self.logger.logdir, "{}.png".format('ca')))
+        ax = plt.gca()
+        # ax.xaxis.set_ticks_position('top')
+        # ax.xaxis.set_label_position('top')
+        # # 把x轴的主刻度设置为1的倍数
+        ax.spines['top'].set_color('grey')
+        ax.spines['right'].set_color('grey')
+        ax.spines['bottom'].set_color('grey')
+        ax.spines['left'].set_color('grey')
+        plt.tight_layout()
+        # plt.savefig('AbAug.png', dpi=600)
+        plt.xlabel('Bag index sorted by average scores of all instances', fontsize=15)
+        # plt.xlabel('', fontsize=15)
+        plt.ylabel('Reweighted average scores', fontsize=15)
+        plt.xticks(fontsize=12)
+        # plt.xticks([])
+        plt.yticks(fontsize=12)
+        plt.savefig(os.path.join(self.logger.logdir, "{}.png".format('ca')), dpi=600)
+        # plt.legend(loc=2)
         plt.show()
 
-        # bar bag preds by ratio
-        plt.bar(x, w, width=0.005)
+
+        # recall and specifi
+        tmp_label_list = [labels_tensor[bag_index_tensor == i] for i in range(bag_index_tensor.max() + 1)]
+        tmp_preds_list = [preds_tensor[bag_index_tensor == i] for i in range(bag_index_tensor.max() + 1)]
+        sensitivity_list = []
+        specificity_list = []
+        for i in range(len(tmp_preds_list)):
+            if (bag_pos_ratio[i] != 0) & (bag_pos_ratio[i] != 1):
+                cls_report = classification_report(np.array(tmp_label_list[i].cpu().squeeze(1)),
+                                                   (np.array(tmp_preds_list[i].cpu().squeeze(1)) > 0.5).astype(int),
+                                                   output_dict=True)
+
+                sensitivity_list.append(cls_report['1.0']['recall'])
+                specificity_list.append(cls_report['0.0']['recall'])
+        idx = np.argsort(np.array(sensitivity_list))
+        sorted_sen = np.array(sensitivity_list)[idx]
+        sorted_spc = np.array(specificity_list)[idx]
+        plt.plot(sorted_sen)
+        plt.plot(sorted_spc)
         plt.show()
+
+        # data = {'Bag scores': bag_preds,
+        #         'Subbag scores': calibrated_partial_instance_preds,
+        #         'Ratio': bag_pos_ratio,
+        #         'Label': pos_or_neg,
+        #         'Bag index': bag_num}
+        # df = pd.DataFrame(data)
+        # # markers = {"0.0": "s", "1.0": "X"}
+        # sns.scatterplot(data=df, x="Bag scores", y="Subbag scores", hue='Bag index',
+        #                 style='Label', size=np.ones_like(bag_preds), sizes=(100, 100),
+        #                 )
+        # plt.savefig(os.path.join(self.logger.logdir, "{}.png".format('ca')))
+        # plt.show()
+        #
+        # # bar bag preds by ratio
+        # plt.bar(x, w, width=0.005)
+        # plt.show()
 
         # if not os.path.exists(os.path.join(self.logger.logdir, 'preds_figs')):
         #     os.makedirs(os.path.join(self.logger.logdir, 'preds_figs'))
         # plt.savefig(os.path.join(self.logger.logdir, 'preds_figs', "{}.png".format(epoch)))
         # # plt.show()
         # plt.close()
-        print('done')
+        # print('done')
 
     def eval_(self, gs, trainset):
         # self.backbone = self.logger.load_backbone_fromold(self.backbone, global_step=gs)
@@ -1611,39 +1714,69 @@ class BaseTrainer(object):
         # with open('/remote-home/ltc/HisMIL/testset.pickle', 'rb') as f:
         #     self.testset = pickle.load(f)
         #     val_loader = DataLoader(self.testset, 256, shuffle=False, num_workers=4)
-        val_loader = DataLoader(trainset, 256, shuffle=True, num_workers=4)
+        val_loader = DataLoader(trainset, 256, shuffle=True, num_workers=8)
         preds_list = []
         bag_index_list = []
         label_list = []
         idx_x_list = []
         idx_y_list = []
         path_list = []
+        idx_list = []
         with torch.no_grad():
-            for batch_idx, (imgs, instance_labels, bag_index, inner_index, nodule_ratios, real_ins_labels) in enumerate(
+            for batch_idx, (imgs, instance_labels,bag_idx, inner_idx, _,most_conf_idx) in enumerate(
                     tqdm(val_loader, ascii=True, ncols=60)):
                 instance_preds = torch.sigmoid(self.clsnet(self.backbone(imgs.to(self.device))))
-                # instance_labels = instance_labels.to(self.device).view(-1, 1)
+                instance_labels = instance_labels.to(self.device)
                 preds_list.append(instance_preds.cpu().detach())
-                bag_index_list.append(bag_index.cpu().detach())
-                label_list.append(real_ins_labels.cpu().detach())
+                # bag_index_list.append(bag_index.cpu().detach())
+                label_list.append(instance_labels.cpu().detach())
+                idx_list.append(most_conf_idx.cpu().detach())
                 # idx_x_list.append(inner_index[1])
                 # idx_y_list.append(inner_index[2])
                 # path_list.extend(list(inner_index[3]))
+                self.memory_bank.update(bag_idx, inner_idx, instance_preds)
 
                 # if batch_idx >10:
                 #     break
         preds_tensor = torch.cat(preds_list)
-        bag_index_tensor = torch.cat(bag_index_list)
+
         labels_tensor = torch.cat(label_list)
-        print(preds_tensor,  bag_index_tensor, labels_tensor )
-        print(preds_tensor.shape,  bag_index_tensor.shape, labels_tensor.shape )
-        y_pred_hard = [(x > 0.5) for x in preds_tensor]
-        labels_tensor = labels_tensor.numpy()
-        cls_report = classification_report(labels_tensor, y_pred_hard, digits=4, output_dict=False)
-        auc_score = roc_auc_score(labels_tensor, preds_tensor.numpy())
-        print(cls_report)
-        print('AUC:', auc_score)
-        print(confusion_matrix(labels_tensor, np.array(y_pred_hard)))
+        index_tensor = torch.cat(idx_list)
+
+        selected_preds = preds_tensor[index_tensor==1]
+        selected_labels = labels_tensor[index_tensor==1]
+        bag_max_pred = self.memory_bank.max_pool(trainset.bag_lengths)
+        # self.cls_report(bag_max_pred[:,0], bag_labels[:,0], "bag_max")
+
+        # bag mean evaluate
+        bag_mean_pred = self.memory_bank.avg_pool(trainset.bag_lengths)
+        # self.cls_report(bag_mean_pred[:,0], bag_labels[:,0], "bag_avg")
+        # bag voting evaluate
+        bag_voting_pred = self.memory_bank.voting_pool(trainset.bag_lengths)
+        bag_labels = torch.stack(trainset.bag_labels)
+        AP_list = torch.zeros([4, bag_max_pred.shape[1]])
+        for i in range(bag_max_pred.shape[1]):
+            AP_max = average_precision_score(bag_labels[:, i], bag_max_pred[:, i])
+            AP_mean = average_precision_score(bag_labels[:, i], bag_mean_pred[:, i])
+            AP_voting = average_precision_score(bag_labels[:, i], bag_voting_pred[:, i])
+            AP_selected = average_precision_score(selected_labels[:, i], selected_preds[:, i])
+            AP_list[0, i], AP_list[1, i], AP_list[2, i] , AP_list[4, i] = AP_max, AP_mean, AP_voting, AP_selected
+        print(AP_list.mean(1))
+        # AP_list = torch.zeros([2, preds_tensor.shape[1]])
+        # for i in range(preds_tensor.shape[1]):
+        #     AP_1 = average_precision_score(labels_tensor[:, i], preds_tensor[:, i])
+        #
+        #     AP_list[0, i], AP_list[1, i] = AP_1, AP_2
+        # print(AP_list.mean(1)[0], AP_list.mean(1)[1])
+        # print(preds_tensor,  bag_index_tensor, labels_tensor )
+        # print(preds_tensor.shape,  bag_index_tensor.shape, labels_tensor.shape )
+        # y_pred_hard = [(x > 0.5) for x in preds_tensor]
+        # labels_tensor = labels_tensor.numpy()
+        # cls_report = classification_report(labels_tensor, y_pred_hard, digits=4, output_dict=False)
+        # auc_score = roc_auc_score(labels_tensor, preds_tensor.numpy())
+        # print(cls_report)
+        # print('AUC:', auc_score)
+        # print(confusion_matrix(labels_tensor, np.array(y_pred_hard)))
         # bag_pos_ratio = torch.stack(trainset.bag_pos_ratios)
         # rank_tensor = torch.topk(preds_tensor.squeeze(-1), len(preds_tensor))[1]
         # idx_x_tensor = torch.cat(idx_x_list)
@@ -1777,3 +1910,127 @@ class BaseTrainer(object):
             self.logger.save(self.backbone, self.clsnet, self.optimizer)
 
         # self.logger.save_result("train_mmbank", self.memory_bank.state_dict())
+
+
+    def eval_catplot(self, gs, trainset):
+        self.backbone = self.logger.load_backbone(self.backbone, global_step=gs)
+        self.clsnet = self.logger.load_clsnet(self.clsnet, global_step=gs)
+        self.backbone.eval()
+        self.clsnet.eval()
+        val_loader = DataLoader(trainset, 256, shuffle=True, num_workers=0)
+        preds_list = []
+        bag_index_list = []
+        label_list = []
+        idx_x_list = []
+        idx_y_list = []
+        path_list = []
+        with torch.no_grad():
+            for batch_idx, (imgs, instance_labels, bag_index, inner_index, nodule_ratios, real_ins_labels) in enumerate(
+                    tqdm(val_loader, ascii=True, ncols=60)):
+                instance_preds = torch.sigmoid(self.clsnet(self.backbone(imgs.to(self.device))))
+                # instance_labels = instance_labels.to(self.device)
+                preds_list.append(instance_preds)
+                bag_index_list.append(bag_index)
+                label_list.append(real_ins_labels)
+                # idx_x_list.append(inner_index[1])
+                # idx_y_list.append(inner_index[2])
+                # path_list.extend(list(inner_index[3]))
+
+                # if batch_idx >5:
+                #     break
+        preds_tensor = torch.cat(preds_list)
+        bag_index_tensor = torch.cat(bag_index_list)
+        labels_tensor = torch.cat(label_list)
+        bag_pos_ratio = torch.stack(trainset.bag_pos_ratios)
+
+        # acc_pos_list = []
+        # acc_neg_list = []
+        # acc_all_list = []
+        # for i in range(bag_index_tensor.max() + 1):
+        #     if bag_pos_ratio[i]!=0:
+        #         bag_preds = (preds_tensor[bag_index_tensor == i]>0.5).cpu().numpy()
+        #         bag_labels = labels_tensor[bag_index_tensor == i].cpu().numpy()
+        #         if (bag_labels == 0).sum() != 0:
+        #             bag_pos_preds = bag_preds[bag_labels == 1]
+        #             bag_pos_labels = np.ones_like(bag_pos_preds)
+        #             bag_neg_preds = bag_preds[bag_labels == 0]
+        #             bag_neg_labels = np.zeros_like(bag_neg_preds)
+        #             acc_pos = accuracy_score(bag_pos_labels, bag_pos_preds)
+        #             acc_neg = accuracy_score(bag_neg_labels, bag_neg_preds)
+        #             acc_all = accuracy_score(bag_labels, bag_preds)
+        #             acc_pos_list.append(acc_pos)
+        #             acc_neg_list.append(acc_neg)
+        #             acc_all_list.append(acc_all)
+        # pos_name = ['positive instance']*len(acc_pos_list)
+        # neg_name = ['negative instance']*len(acc_neg_list)
+        # all_name = ['bag level']*len(acc_all_list)
+        # ACC = np.concatenate((acc_pos_list, acc_neg_list, acc_all_list))
+        # names = np.concatenate((pos_name, neg_name, all_name))
+        # data = {'whichAcc': names,
+        #         'AccVaule': ACC}
+        # df = pd.DataFrame(data)
+        # sns.catplot(
+        #     data=df, kind="bar",
+        #     x="whichAcc", y="AccVaule",
+        #     ci=95, height=6
+        # )
+        # plt.tight_layout()
+        # ax = plt.gca()
+        # ax.spines['right'].set_color('black')
+        # # , alpha=.6
+        # # plt.despine(left=True)
+        # plt.ylabel("accuracy")
+        # plt.xlabel("")
+        # plt.title(gs)
+        # plt.tight_layout()
+        # plt.show()
+        acc_pos_list = []
+        acc_neg_list = []
+        acc_all_list = []
+        for i in range(bag_index_tensor.max() + 1):
+            if bag_pos_ratio[i] != 0:
+                bag_preds = (preds_tensor[bag_index_tensor == i] > 0.5).cpu().numpy()
+                bag_labels = labels_tensor[bag_index_tensor == i].cpu().numpy()
+                if (bag_labels == 0).sum() != 0:
+                    bag_pos_preds = bag_preds[bag_labels == 1]
+                    bag_neg_preds = bag_preds[bag_labels == 0]
+                    acc_pos_list.append(bag_pos_preds.mean())
+                    acc_neg_list.append(bag_neg_preds.mean())
+                    acc_all_list.append(bag_preds.mean())
+        pos_name = ['positive\ninstance'] * len(acc_pos_list)
+        neg_name = ['negative\ninstance'] * len(acc_neg_list)
+        all_name = ['bag\nlevel'] * len(acc_all_list)
+        ACC = np.concatenate((acc_pos_list, acc_neg_list, acc_all_list))
+        names = np.concatenate((pos_name, neg_name, all_name))
+        data = {'whichAcc': names,
+                'AccVaule': ACC}
+        df = pd.DataFrame(data)
+        plt.rc('font', family="Times New Roman")
+        # sns.set(font='Times New Roman')
+        sns.catplot(
+            data=df, kind="bar",
+            x="whichAcc", y="AccVaule",
+            ci=95, height=6, aspect=.9
+        )
+        plt.tight_layout()
+        ax = plt.gca()
+        # ax.spines['right'].set_color('black')
+        ax.spines['top'].set_visible(True)
+        ax.spines['right'].set_visible(True)
+        ax.spines['top'].set_color('grey')
+        ax.spines['right'].set_color('grey')
+        ax.spines['bottom'].set_color('grey')
+        ax.spines['left'].set_color('grey')
+        plt.ylabel("Score", fontsize=22)
+        plt.xlabel("")
+        plt.title("")
+        plt.xticks(rotation=0, fontsize=20)
+        # plt.xticks([])
+        plt.yticks(fontsize=20)
+        plt.ylim([0.5, 0.95])
+        my_y_ticks = np.arange(0.5, .95, 0.1)  # 显示范围为-5至5，每0.5显示一刻度
+        plt.yticks(my_y_ticks)
+        plt.tight_layout()
+        plt.savefig(os.path.join(self.logger.logdir, "score.png"), dpi=600)
+        plt.show()
+
