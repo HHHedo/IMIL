@@ -38,10 +38,10 @@ Data Root/
 		five_folder/
 			f0/
 				train/
-				    pos/
-				    	WSI_0/
-			    			WSI_O_X_Y_(instance_label,bag_label).png
-				    neg/
+					pos/
+						WSI_0/
+							WSI_O_X_Y_(instance_label,bag_label).png
+				        neg/
 				test/
             	
 	Camenlyon16/
