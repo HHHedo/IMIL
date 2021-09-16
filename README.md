@@ -1,6 +1,6 @@
-## Interventional Multi-Instance Learning \\with Deconfounded Instance-Level Prediction
+## Interventional Multi-Instance Learning with Deconfounded Instance-Level Prediction
 
-Implementation  of IMIL.
+Implementation of IMIL.
 
 ### Environments
 
