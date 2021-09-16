@@ -35,14 +35,14 @@ We support training and testing on [DigestPath](https://digestpath2019.grand-cha
 ```
 Data Root/
 	DigestPath/
-		5_folder/
-        	0/
-                train/
-                    pos/
-                    	WSI_0/
-                    		WSI_O_X_Y_(instance_label,bag_label).png
-                    neg/
-                test/
+		five_folder/
+			f0/
+				train/
+				    pos/
+				    	WSI_0/
+			    			WSI_O_X_Y_(instance_label,bag_label).png
+				    neg/
+				test/
             	
 	Camenlyon16/
 		train/
@@ -52,7 +52,7 @@ Data Root/
    		 	neg_instances_group_in_pos_bags/
 				WSI_0/
 				WSI_3/
-            neg_instances_group_in_neg_bags/
+            		neg_instances_group_in_neg_bags/
 				WSI_1/
                 
 		test/
@@ -77,9 +77,9 @@ This implementation supports single-gpu training; multi-gpu, DistributedDataPara
 To do multiple instance learning with a ResNet-18 model  in single-gpu machine:
 ```python
 python main.py  --task DigestSeg --config DigestSegEMCAV2 \
-		        --log_dir  [your logging folder] \  
-		        --data_root  [your data root folder] \
-		        --workers 8  --ignore_thres 0.95 --mmt 0.5 
+	        --log_dir  [your logging folder] \
+	        --data_root  [your data root folder] \
+	        --workers 8  --ignore_thres 0.95 --mmt 0.5 
 ```
 ### Reproduce Camelyon16
 
@@ -87,9 +87,9 @@ Please run:
 
 ```python
 python main.py --task Camelyon --config DigestSegEMCAV2 \
-			   --log_dir [your logging folder] \  
-	           --data_root [your data root folder] \
-	           --workers 8 -lr 1e-3 --epochs 50 --mmt 0.5 --ignore_thres 0.95 
+	       --log_dir [your logging folder] \
+	       --data_root [your data root folder] \
+	       --workers 8 -lr 1e-3 --epochs 50 --mmt 0.5 --ignore_thres 0.95 
 ```
 
 ### Reproduce Pascal VOC 07
@@ -98,8 +98,8 @@ Please run:
 
 ```python
 python main.py --task Pascal --config DigestSegEMCAV2 \
-                --log_dir [your logging folder] \  
-                --workers 8 --pretrained --backbone 50 --ignore_thres 0.95 --mmt 0.5
+	       --log_dir [your logging folder] \ 
+               --workers 8 --pretrained --backbone 50 --ignore_thres 0.95 --mmt 0.5
 ```
 
 
@@ -107,51 +107,51 @@ python main.py --task Pascal --config DigestSegEMCAV2 \
 
 ### Methods
 
-The reproduced methods by ourselves including **Oracle **, **RCEMIL**, **PatchCNN**, **SemiMIL**, **SimpleMIL** and **Top-kMIL**. To run these methods, you should choose the corresponding configs.
+The reproduced methods by ourselves including **Oracle**, **RCEMIL**, **PatchCNN**, **SemiMIL**, **SimpleMIL** and **Top-kMIL**. To run these methods, you should choose the corresponding configs.
 
 To run the Oracle **model** on **DigestPath**:
 
 ```python
 python main.py  --task DigestSeg --config DigestSegFull \
-				--log_dir  [your logging folder] \  
-		        --data_root  [your data root folder] \
-		        --workers 8 
+		--log_dir  [your logging folder] \  
+	        --data_root  [your data root folder] \
+	        --workers 8 
 ```
 
 To  run the **RCEMIL** model on **DigestPath**:
 
 ```python
 python main.py  --task DigestSeg --config DigestSegRCE \
-				--log_dir  [your logging folder] \  
-		        --data_root  [your data root folder] \
-		         --workers 8 --mmt 0.75 
+		--log_dir  [your logging folder] \  
+	        --data_root  [your data root folder] \
+	        --workers 8 --mmt 0.75 
 ```
 
 To  run the **PatchCNN** model on **DigestPath**:
 
 ```python
 python main.py  --task DigestSeg --config DigestSegPB \
-				--log_dir  [your logging folder] \  
-		        --data_root  [your data root folder] \
-        		--workers 8  --mmt 0 
+		--log_dir  [your logging folder] \  
+	        --data_root  [your data root folder] \
+		--workers 8  --mmt 0 
 ```
 
 To  run the **SemiMIL** model on **DigestPath**:
 
 ```python
 python main.py  --task DigestSeg --config  DigestSemi \
-				--log_dir  [your logging folder] \  
-		        --data_root  [your data root folder] \
-        		--workers 8 --semi_ratio 0.5
+		--log_dir  [your logging folder] \  
+	        --data_root  [your data root folder] \
+		--workers 8 --semi_ratio 0.5
 ```
 
 To  run the **Top-kMIL** model on **DigestPath**:
 
 ```python
 python main.py  --task DigestSeg --config DigestSegTOPK \
-				--log_dir  [your logging folder] \  
-		        --data_root  [your data root folder] \
-        		--workers 8 --mmt 0 
+		--log_dir  [your logging folder] \  
+	        --data_root  [your data root folder] \
+		--workers 8 --mmt 0 
 ```
 
 
