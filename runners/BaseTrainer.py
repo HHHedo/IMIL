@@ -81,7 +81,6 @@ class BaseTrainer(object):
         self.loader_list = loader_list
         self.valset = valset
         self.val_loader = val_loader
-        # self.train_loader = DataLoader(self.trainset, batch_sizef, shuffle=True, num_workers=num_workers)
         self.memory_bank = memory_bank
         self.save_interval = save_interval
         self.logger = logger
@@ -90,23 +89,23 @@ class BaseTrainer(object):
         self.configs = configs
         self.device = device
 
-    # - SimpleMIL, RCE, Ca
+    # - SimpleMIL, RCE
     def train(self, epoch):
         self.backbone.train()
         self.clsnet.train()
         self.logger.update_step()
         show_loss = []
-        # int info
-        preds_list = []
-        bag_index_list = []
-        label_list = []
+        # # int info
+        # preds_list = []
+        # bag_index_list = []
+        # label_list = []
         ACC = AverageMeter('Acc', ':6.2f')
         losses = AverageMeter('Loss', ':.4e')
         progress = ProgressMeter(
             len(self.train_loader),
             [losses, ACC],
             prefix="Epoch: [{}]".format(epoch))
-        softmax = nn.Softmax(dim=1)
+        # softmax = nn.Softmax(dim=1)
         for batch_idx, (imgs, instance_labels, bag_index, inner_index, nodule_ratios, real_ins_labels) in enumerate(
                 tqdm(self.train_loader, ascii=True, ncols=60,)):
             self.logger.update_iter()
@@ -114,7 +113,7 @@ class BaseTrainer(object):
             # instance_preds = self.clsnet(self.backbone(imgs.to(self.device)), bag_index, inner_index, None, None)
             instance_preds = self.clsnet(self.backbone(imgs.to(self.device)))
             instance_labels = instance_labels.to(self.device)
-            real_ins_labels = real_ins_labels.to(self.device)
+            # real_ins_labels = real_ins_labels.to(self.device)
 
             ##instancee-level prediction loss
             if self.configs == 'DigestSeg':
@@ -135,17 +134,17 @@ class BaseTrainer(object):
                 loss = self.criterion(instance_preds, instance_labels.view(-1, 1),
                                                           weight=weight,
                                                           )
-            elif self.configs == 'DigestSegCa':
-                # Ca
-                weight, _ = self.memory_bank.get_weight(bag_index, inner_index, nodule_ratios,
-                                                                 preds=instance_preds.sigmoid(),
-                                                                 cur_epoch=epoch,
-                                                                 )
-
-                loss = F.binary_cross_entropy_with_logits(instance_preds, instance_labels.view(-1, 1),
-                                                          weight=weight,
-                                                          reduction='sum'
-                                                          )/weight.sum()
+            # elif self.configs == 'DigestSegCa':
+            #     # Ca
+            #     weight, _ = self.memory_bank.get_weight(bag_index, inner_index, nodule_ratios,
+            #                                                      preds=instance_preds.sigmoid(),
+            #                                                      cur_epoch=epoch,
+            #                                                      )
+            #
+            #     loss = F.binary_cross_entropy_with_logits(instance_preds, instance_labels.view(-1, 1),
+            #                                               weight=weight,
+            #                                               reduction='sum'
+            #                                               )/weight.sum()
 
             #digest
             # acc = (torch.ge(instance_preds.sigmoid(), 0.5).float().squeeze(1)==instance_labels).sum().float()/len(real_ins_labels)
@@ -176,10 +175,8 @@ class BaseTrainer(object):
             #     progress.display(batch_idx)
             #     # print(torch.ge(instance_preds.sigmoid(),0.5).float().squeeze(1).sum())
             #     print(torch.ge(softmax(instance_preds)[:,1],0.5).float().squeeze(1).sum())
-            # if batch_idx >8:
-            #     print(bag_index_list)
-            #     int(label_list)
-            #     break
+            if batch_idx >8:
+                break
 
         #print info
         progress.display(batch_idx)
@@ -235,7 +232,7 @@ class BaseTrainer(object):
             #                                                  preds=instance_preds.sigmoid(),
             #                                                  cur_epoch=epoch,
             #                                                  )
-            loss = self.criterion(instance_preds, instance_labels.view(-1, 1))
+            loss = self.criterion(instance_preds, instance_labels)
             # loss = F.binary_cross_entropy_with_logits(instance_preds, instance_labels.view(-1, 1))
 
 
@@ -300,8 +297,8 @@ class BaseTrainer(object):
     # - Oricla
     def train_fullsupervision(self, epoch, configs):
         self.backbone.train()
-        if self.old_backbone is not None:
-            self.old_backbone.eval()
+        # if self.old_backbone is not None:
+        #     self.old_backbone.eval()
         self.clsnet.train()
         self.logger.update_step()
         show_loss = []
@@ -315,7 +312,7 @@ class BaseTrainer(object):
             len(self.train_loader),
             [losses, ACC],
             prefix="Epoch: [{}]".format(epoch))
-        softmax = nn.Softmax(dim=1)
+        # softmax = nn.Softmax(dim=1)
         for batch_idx, (imgs, _, bag_index, inner_index, nodule_ratios, real_ins_labels) in enumerate(
                 tqdm(self.train_loader, ascii=True, ncols=60,)):
             # print(imgs.shape, real_ins_labels.shape)
@@ -360,7 +357,7 @@ class BaseTrainer(object):
             label_list.append(real_ins_labels.cpu().detach())
             
                 
-            # if  batch_idx > 100:
+            # if  batch_idx > 1:
             #     break
 
         # print info
@@ -394,8 +391,8 @@ class BaseTrainer(object):
 
     def train_semi(self, epoch, configs):
         self.backbone.train()
-        if self.old_backbone is not None:
-            self.old_backbone.eval()
+        # if self.old_backbone is not None:
+        #     self.old_backbone.eval()
         self.clsnet.train()
         self.logger.update_step()
         show_loss = []
@@ -478,161 +475,161 @@ class BaseTrainer(object):
 
         self.logger.save_result("train_mmbank", self.memory_bank.state_dict())
     # - Oricla
-    def causalconcat_full(self, epoch, configs):
-        self.backbone.train()
-        self.clsnet.train()
-        self.clsnet_causal.train()
-        self.logger.update_step()
-        show_loss = []
-        # int info
-        preds_list = []
-        bag_index_list = []
-        label_list = []
-        ACC = AverageMeter('Acc', ':6.2f')
-        losses_ins = AverageMeter('Loss', ':.4e')
-        losses_bag = AverageMeter('Loss', ':.4e')
-        progress = ProgressMeter(
-            len(self.train_loader),
-            [losses_ins, losses_bag, ACC],
-            prefix="Epoch: [{}]".format(epoch))
-        for batch_idx, (imgs, bag_labels, bag_index, inner_index, nodule_ratios, real_ins_labels) in enumerate(
-                tqdm(self.train_loader, ascii=True, ncols=60,)):
-            self.logger.update_iter()
-            self.optimizer.zero_grad()
-            # with torch.no_grad():
-            #     # original_feature = self.old_backbone(imgs.to(self.device))
-            #     causal_feature = self.backbone(imgs.to(self.device))
-            #     # feature = torch.cat((original_feature, causal_feature), 1)
-            #     feature = causal_feature
-            # instance_preds, cluster_preds ,cluster_labels = self.clsnet(self.backbone(imgs.to(self.device)), bag_index, inner_index)
-            feature = self.backbone(imgs.to(self.device))
-            instance_preds = self.clsnet(feature)
-            bag_preds,_ = self.clsnet_causal(feature, bag_index, inner_index, None, imgs)
-            # bag_preds = self.clsnet_causal(feature)
-            instance_labels = real_ins_labels.to(self.device)
-            bag_labels = bag_labels.to(self.device)
-            # cluster_labels = cluster_labels.to(self.device)
-            # loss = self.criterion(instance_preds, instance_labels.view(-1, 1)) + configs.CE(cluster_preds ,cluster_labels)
-            loss_ins = self.criterion(instance_preds, instance_labels.view(-1, 1))
-            loss_bag = configs.bce(bag_preds, bag_labels.view(-1, 1))
-            # loss_conf = configs.CE(cluster_preds ,cluster_labels)
-            loss = loss_ins + loss_bag
-            # print('loss:',loss.item())
-            # print('loss_self: {}, loss_conf: {}'.format(loss_self, loss_conf))
-            ## update memory bank
-            self.memory_bank.update(bag_index, inner_index, instance_preds.sigmoid(), epoch)
-            loss.backward()
-            self.optimizer.step()
-            acc = (torch.ge(instance_preds.sigmoid(), 0.5).float().squeeze(1) == instance_labels).sum().float() / len(
-                instance_labels)
-            losses_ins.update(loss_ins.item(), imgs.size(0))
-            losses_bag.update(loss_bag.item(), imgs.size(0))
-            ACC.update(acc, imgs.size(0))
-            show_loss.append(loss.item())
-            preds_list.append(instance_preds.sigmoid().cpu().detach())
-            bag_index_list.append(bag_index.cpu().detach())
-            label_list.append(real_ins_labels.cpu().detach())
-            
-                
-            # if  batch_idx > 10:
-            #     break
-
-        # print info
-        print('\n')
-        progress.display(batch_idx)
-        preds_tensor = torch.cat(preds_list)
-        bag_index_tensor = torch.cat(bag_index_list)
-        labels_tensor = torch.cat(label_list)
-        self.cal_preds_in_training(preds_tensor, bag_index_tensor, labels_tensor, epoch)
-        avg_loss = sum(show_loss) / (len(show_loss))
-        self.logger.log_scalar("loss", avg_loss, print=True)
-        self.logger.clear_inner_iter()
-        if self.lrsch is not None:
-            if isinstance(self.lrsch, optim.lr_scheduler.ReduceLROnPlateau):
-                self.lrsch.step(avg_loss)
-                print('lr changs wrongly')
-            else:
-                self.lrsch.step()
-                print('lr changs wrongly')
-
-        ##after epoch memory bank operation
-        # self.memory_bank.Gaussian_smooth()
-        self.memory_bank.update_rank()
-        self.memory_bank.update_epoch()
-        ##saving
-        if self.logger.global_step % self.save_interval == 0:
-            self.logger.save(self.backbone, self.clsnet, self.optimizer)
-
-        self.logger.save_result("train_mmbank", self.memory_bank.state_dict())
-
-    def train_bagdis(self, epoch, configs):
-        self.backbone.train()
-        self.clsnet.train()
-        self.logger.update_step()
-        show_loss = []
-        # int info
-        preds_list = []
-        bag_index_list = []
-        label_list = []
-        ACC = AverageMeter('Acc', ':6.2f')
-        losses = AverageMeter('Loss', ':.4e')
-        progress = ProgressMeter(
-            len(self.train_loader),
-            [losses, ACC],
-            prefix="Epoch: [{}]".format(epoch))
-        for batch_idx, (imgs, _, bag_index, inner_index, nodule_ratios, real_ins_labels) in enumerate(
-                tqdm(self.train_loader, ascii=True, ncols=60,)):
-            self.logger.update_iter()
-            self.optimizer.zero_grad()
-            instance_preds = self.clsnet(self.backbone(imgs.to(self.device)))
-            instance_labels = bag_index.to(self.device)
-            # print(torch.argmax(instance_preds, dim=1))
-            # print(instance_labels)
-            loss_self = self.criterion(instance_preds, instance_labels)
-            loss = loss_self 
-            loss.backward()
-            self.optimizer.step()
-            acc = (torch.argmax(instance_preds, dim=1) == instance_labels).sum().float() / len(
-                instance_labels)
-            losses.update(loss.item(), imgs.size(0))
-            ACC.update(acc, imgs.size(0))
-            show_loss.append(loss.item())
-            preds_list.append(torch.argmax(instance_preds, dim=1).cpu().detach())
-            # bag_index_list.append(bag_index.cpu().detach())
-            label_list.append(instance_labels.cpu().detach())
-                
-            # if  batch_idx > 10:
-            #     break
-
-        # print info
-        print('\n')
-        progress.display(batch_idx)
-        # print info
-        preds_tensor = torch.cat(preds_list)
-        labels_tensor = torch.cat(label_list)
-        cls_report = classification_report(labels_tensor.numpy(),preds_tensor.numpy(), output_dict=True)
-        # auc_score = roc_auc_score(labels_tensor, preds_tensor.numpy())
-        print(cls_report)
-        # print('AUC:', auc_score)
-        print(confusion_matrix(preds_tensor, labels_tensor.numpy()))
-        avg_loss = sum(show_loss) / (len(show_loss))
-        self.logger.log_scalar("loss", avg_loss, print=True)
-        self.logger.clear_inner_iter()
-        if self.lrsch is not None:
-            if isinstance(self.lrsch, optim.lr_scheduler.ReduceLROnPlateau):
-                self.lrsch.step(avg_loss)
-                print('lr changs wrongly')
-            else:
-                self.lrsch.step()
-                print('lr changs wrongly')
-
-        ##after epoch memory bank operation
-        # self.memory_bank.Gaussian_smooth()
-        # self.memory_bank.update_rank()
-        # self.memory_bank.update_epoch()
-        ##saving
-        if self.logger.global_step % self.save_interval == 0:
-            self.logger.save(self.backbone, self.clsnet, self.optimizer)
+    # def causalconcat_full(self, epoch, configs):
+    #     self.backbone.train()
+    #     self.clsnet.train()
+    #     self.clsnet_causal.train()
+    #     self.logger.update_step()
+    #     show_loss = []
+    #     # int info
+    #     preds_list = []
+    #     bag_index_list = []
+    #     label_list = []
+    #     ACC = AverageMeter('Acc', ':6.2f')
+    #     losses_ins = AverageMeter('Loss', ':.4e')
+    #     losses_bag = AverageMeter('Loss', ':.4e')
+    #     progress = ProgressMeter(
+    #         len(self.train_loader),
+    #         [losses_ins, losses_bag, ACC],
+    #         prefix="Epoch: [{}]".format(epoch))
+    #     for batch_idx, (imgs, bag_labels, bag_index, inner_index, nodule_ratios, real_ins_labels) in enumerate(
+    #             tqdm(self.train_loader, ascii=True, ncols=60,)):
+    #         self.logger.update_iter()
+    #         self.optimizer.zero_grad()
+    #         # with torch.no_grad():
+    #         #     # original_feature = self.old_backbone(imgs.to(self.device))
+    #         #     causal_feature = self.backbone(imgs.to(self.device))
+    #         #     # feature = torch.cat((original_feature, causal_feature), 1)
+    #         #     feature = causal_feature
+    #         # instance_preds, cluster_preds ,cluster_labels = self.clsnet(self.backbone(imgs.to(self.device)), bag_index, inner_index)
+    #         feature = self.backbone(imgs.to(self.device))
+    #         instance_preds = self.clsnet(feature)
+    #         bag_preds,_ = self.clsnet_causal(feature, bag_index, inner_index, None, imgs)
+    #         # bag_preds = self.clsnet_causal(feature)
+    #         instance_labels = real_ins_labels.to(self.device)
+    #         bag_labels = bag_labels.to(self.device)
+    #         # cluster_labels = cluster_labels.to(self.device)
+    #         # loss = self.criterion(instance_preds, instance_labels.view(-1, 1)) + configs.CE(cluster_preds ,cluster_labels)
+    #         loss_ins = self.criterion(instance_preds, instance_labels.view(-1, 1))
+    #         loss_bag = configs.bce(bag_preds, bag_labels.view(-1, 1))
+    #         # loss_conf = configs.CE(cluster_preds ,cluster_labels)
+    #         loss = loss_ins + loss_bag
+    #         # print('loss:',loss.item())
+    #         # print('loss_self: {}, loss_conf: {}'.format(loss_self, loss_conf))
+    #         ## update memory bank
+    #         self.memory_bank.update(bag_index, inner_index, instance_preds.sigmoid(), epoch)
+    #         loss.backward()
+    #         self.optimizer.step()
+    #         acc = (torch.ge(instance_preds.sigmoid(), 0.5).float().squeeze(1) == instance_labels).sum().float() / len(
+    #             instance_labels)
+    #         losses_ins.update(loss_ins.item(), imgs.size(0))
+    #         losses_bag.update(loss_bag.item(), imgs.size(0))
+    #         ACC.update(acc, imgs.size(0))
+    #         show_loss.append(loss.item())
+    #         preds_list.append(instance_preds.sigmoid().cpu().detach())
+    #         bag_index_list.append(bag_index.cpu().detach())
+    #         label_list.append(real_ins_labels.cpu().detach())
+    #
+    #
+    #         # if  batch_idx > 10:
+    #         #     break
+    #
+    #     # print info
+    #     print('\n')
+    #     progress.display(batch_idx)
+    #     preds_tensor = torch.cat(preds_list)
+    #     bag_index_tensor = torch.cat(bag_index_list)
+    #     labels_tensor = torch.cat(label_list)
+    #     self.cal_preds_in_training(preds_tensor, bag_index_tensor, labels_tensor, epoch)
+    #     avg_loss = sum(show_loss) / (len(show_loss))
+    #     self.logger.log_scalar("loss", avg_loss, print=True)
+    #     self.logger.clear_inner_iter()
+    #     if self.lrsch is not None:
+    #         if isinstance(self.lrsch, optim.lr_scheduler.ReduceLROnPlateau):
+    #             self.lrsch.step(avg_loss)
+    #             print('lr changs wrongly')
+    #         else:
+    #             self.lrsch.step()
+    #             print('lr changs wrongly')
+    #
+    #     ##after epoch memory bank operation
+    #     # self.memory_bank.Gaussian_smooth()
+    #     self.memory_bank.update_rank()
+    #     self.memory_bank.update_epoch()
+    #     ##saving
+    #     if self.logger.global_step % self.save_interval == 0:
+    #         self.logger.save(self.backbone, self.clsnet, self.optimizer)
+    #
+    #     self.logger.save_result("train_mmbank", self.memory_bank.state_dict())
+    #
+    # def train_bagdis(self, epoch, configs):
+    #     self.backbone.train()
+    #     self.clsnet.train()
+    #     self.logger.update_step()
+    #     show_loss = []
+    #     # int info
+    #     preds_list = []
+    #     bag_index_list = []
+    #     label_list = []
+    #     ACC = AverageMeter('Acc', ':6.2f')
+    #     losses = AverageMeter('Loss', ':.4e')
+    #     progress = ProgressMeter(
+    #         len(self.train_loader),
+    #         [losses, ACC],
+    #         prefix="Epoch: [{}]".format(epoch))
+    #     for batch_idx, (imgs, _, bag_index, inner_index, nodule_ratios, real_ins_labels) in enumerate(
+    #             tqdm(self.train_loader, ascii=True, ncols=60,)):
+    #         self.logger.update_iter()
+    #         self.optimizer.zero_grad()
+    #         instance_preds = self.clsnet(self.backbone(imgs.to(self.device)))
+    #         instance_labels = bag_index.to(self.device)
+    #         # print(torch.argmax(instance_preds, dim=1))
+    #         # print(instance_labels)
+    #         loss_self = self.criterion(instance_preds, instance_labels)
+    #         loss = loss_self
+    #         loss.backward()
+    #         self.optimizer.step()
+    #         acc = (torch.argmax(instance_preds, dim=1) == instance_labels).sum().float() / len(
+    #             instance_labels)
+    #         losses.update(loss.item(), imgs.size(0))
+    #         ACC.update(acc, imgs.size(0))
+    #         show_loss.append(loss.item())
+    #         preds_list.append(torch.argmax(instance_preds, dim=1).cpu().detach())
+    #         # bag_index_list.append(bag_index.cpu().detach())
+    #         label_list.append(instance_labels.cpu().detach())
+    #
+    #         # if  batch_idx > 10:
+    #         #     break
+    #
+    #     # print info
+    #     print('\n')
+    #     progress.display(batch_idx)
+    #     # print info
+    #     preds_tensor = torch.cat(preds_list)
+    #     labels_tensor = torch.cat(label_list)
+    #     cls_report = classification_report(labels_tensor.numpy(),preds_tensor.numpy(), output_dict=True)
+    #     # auc_score = roc_auc_score(labels_tensor, preds_tensor.numpy())
+    #     print(cls_report)
+    #     # print('AUC:', auc_score)
+    #     print(confusion_matrix(preds_tensor, labels_tensor.numpy()))
+    #     avg_loss = sum(show_loss) / (len(show_loss))
+    #     self.logger.log_scalar("loss", avg_loss, print=True)
+    #     self.logger.clear_inner_iter()
+    #     if self.lrsch is not None:
+    #         if isinstance(self.lrsch, optim.lr_scheduler.ReduceLROnPlateau):
+    #             self.lrsch.step(avg_loss)
+    #             print('lr changs wrongly')
+    #         else:
+    #             self.lrsch.step()
+    #             print('lr changs wrongly')
+    #
+    #     ##after epoch memory bank operation
+    #     # self.memory_bank.Gaussian_smooth()
+    #     # self.memory_bank.update_rank()
+    #     # self.memory_bank.update_epoch()
+    #     ##saving
+    #     if self.logger.global_step % self.save_interval == 0:
+    #         self.logger.save(self.backbone, self.clsnet, self.optimizer)
     # - EM based Ca
     def train_EMCA(self, epoch, configs):
         self.backbone.train()
@@ -653,9 +650,9 @@ class BaseTrainer(object):
             instance_labels = instance_labels.to(self.device)
 
             ## Digestpath
-            # loss = self.criterion(instance_preds, instance_labels.view(-1, 1))
+            loss = self.criterion(instance_preds, instance_labels)
             ## Digestpath
-            loss = self.criterion(instance_preds, instance_labels, nodule_ratios.cuda())
+            # loss = self.criterion(instance_preds, instance_labels, nodule_ratios.cuda())
 
             loss.backward()
             self.optimizer.step()
@@ -665,12 +662,12 @@ class BaseTrainer(object):
             label_list.append(real_ins_labels.cpu().detach())
             # print(instance_labels.sum(), real_ins_labels.sum())
             #
-            # if batch_idx > 1:
-            # #     # import pdb
-            # #     # pdb.set_trace()
-            # #     # print(bag_index_list)
-            # #     # print(label_list)
-            #     break
+            if batch_idx > 1:
+            #     # import pdb
+            #     # pdb.set_trace()
+            #     # print(bag_index_list)
+            #     # print(label_list)
+                break
 
         ## Digestpath
         ## print info
@@ -781,8 +778,8 @@ class BaseTrainer(object):
                 # 1. forward and update memory bank
                 instance_preds = self.clsnet(self.backbone(imgs.to(self.device)))
                 self.memory_bank.update(bag_index, inner_index, instance_preds.sigmoid(), epoch) #bag-level
-                # if batch_idx > 100:
-                #     break
+                if batch_idx > 1:
+                    break
             # 2.get mean preds of each bag
             # k = self.memory_bank.ignore_num
             # if epoch >= epoch_thres:

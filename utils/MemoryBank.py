@@ -561,7 +561,7 @@ class PBTensorMemoryBank(TensorMemoryBank):
         new_selected_preds_list = [] # mean of selected of all classes
         for i in range(self.dictionary.shape[2]): # for each class
             # calculate the k
-            pos_ins_num = (self.bag_lens[self.bag_pos_ratio_tensor > 0].squeeze(-1)*bag_labels[:,i]).sum()
+            pos_ins_num = (self.bag_lens[self.bag_pos_ratio_tensor > 0].squeeze(-1)*bag_labels[self.bag_pos_ratio_tensor > 0][:,i]).sum()
             k = int(self.ignore_num[i] * pos_ins_num)
             dict = self.dictionary[:, :, i]
             selected_idx = torch.ones_like(dict).cuda()

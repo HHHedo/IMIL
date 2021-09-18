@@ -52,64 +52,14 @@ class Config(object):
             transforms.RandomHorizontalFlip(),
             transforms.ToTensor(),
             normalize])
-    # train_transform = transforms.Compose([
-    #     transforms.RandomResizedCrop((448, 448)),
-    #     transforms.RandomHorizontalFlip(),
-    #     # transforms.RandomVerticalFlip(0.5),
-    #     # transforms.ColorJitter(0.25, 0.25, 0.25, 0.25),
-    #     transforms.ToTensor(),
-    #     normalize
-    # ])
     test_transform = transforms.Compose([
         transforms.Resize((512)),
         transforms.CenterCrop(448),
         transforms.ToTensor(),
         normalize
     ])
-    # train_transform = transforms.Compose([
-    #     transforms.RandomResizedCrop((448, 448), scale=(0.2, 1.0)),
-    #     transforms.RandomHorizontalFlip(0.5),
-    #     transforms.RandomVerticalFlip(0.5),
-    #     transforms.ColorJitter(0.25, 0.25, 0.25, 0.25),
-    #     transforms.ToTensor(),
-    #     normalize
-    # ])
-    # test_transform = transforms.Compose([
-    #     transforms.Resize((448, 448)),
-    #     transforms.ToTensor(),
-    #     normalize
-    # ])
-    ########
-    # ssl_transform = transforms.Compose([
-    #     RandomApply(
-    #         transforms.ColorJitter(0.8, 0.8, 0.8, 0.2),
-    #         p=0.3
-    #     ),
-    #     transforms.RandomGrayscale(p=0.2),
-    #     transforms.RandomHorizontalFlip(),
-    #     RandomApply(
-    #         transforms.GaussianBlur((3, 3), (1.0, 2.0)),
-    #         p=0.2
-    #     ),
-    #     transforms.RandomResizedCrop((448, 448), scale=(0.2, 1.0)),
-    #     transforms.ToTensor(),
-    #     normalize
-    #     ])
-    #############
-    # train_transform_C = transforms.Compose([
-    #     transforms.RandomResizedCrop((224, 224), scale=(0.2, 1.0)),
-    #     transforms.RandomHorizontalFlip(0.5),
-    #     transforms.RandomVerticalFlip(0.5),
-    #     transforms.ColorJitter(0.25, 0.25, 0.25, 0.25),
-    #     transforms.ToTensor(),
-    #     normalize
-    # ])
-    # test_transform_C = transforms.Compose([
-    #     transforms.Resize((224, 224)),
-    #     transforms.ToTensor(),
-    #     normalize
-    # ])
-    batch_size = 64 # 64 for training, 256 for figure generation
+
+    batch_size = 64
 
     ## training configs
     backbone = "res18"
@@ -117,7 +67,7 @@ class Config(object):
     lr = 1e-3
     lrsch = None
     weight_decay = 0
-    #PB
+
     noisy = False
     ignore_step = 0.05
     ignore_goon = True
@@ -128,7 +78,7 @@ class Config(object):
     ## calibrated loss
     ignore_ratio = 0.2
     stop_epoch = 20
-    # for aggnet like RNN and Twostage, the bag_len should be at least 10
+    # for Aggnet like RNN and Twostage, the bag_len should be at least 10
     bag_len_thres = 9
     ssl = False
     semi_ratio = None
@@ -170,8 +120,8 @@ class Config(object):
         if self.database:
             self.database = redis.Redis(host='localhost', port=6379)
 
-        if self.config == 'DigestSegAMIL':
-            self.batch_size = 1
+        # if self.config == 'DigestSegAMIL':
+        #     self.batch_size = 1
 
         ##task configuration
         self.label_dict = None
@@ -199,31 +149,31 @@ class Config(object):
         ## 1. build dataset & dataloader
         train_root = os.path.join(self.data_root, "train")
         test_root = os.path.join(self.data_root, "test")
-        if self.config == 'DigestSegAMIL' or self.config == 'DigestSegMaxPool' or self.config == 'DigestSegMeanPool':
-            self.trainset = DigestSegBag(train_root, None, None, None)
-            self.testset = DigestSegBag(test_root, None, None, None)
-            self.train_loader = DataLoader(self.trainset, batch_size=1, shuffle=True, num_workers=0)
-            self.test_loader = DataLoader(self.testset, batch_size=1, shuffle=False, num_workers=0)
-            self.train_loader_list = init_all_dl(self.train_loader, self.batch_size, shuffle=True,
-                                                 trans=self.train_transform, database=self.database)
-            self.test_loader_list = init_all_dl(self.test_loader, self.batch_size, shuffle=False,
-                                                trans=self.test_transform, database=self.database)
-        elif self.config == 'DigestSegRNN' or self.config == 'DigestSegTwostage':  # fixed_len to k
-            self.trainset = DigestSegBag(train_root, None, None, None, bag_len_thres=self.bag_len_thres)
-            self.testset = DigestSegBag(test_root, None, None, None, bag_len_thres=self.bag_len_thres)
-            self.train_loader = DataLoader(self.trainset, batch_size=1, shuffle=True, num_workers=0)
-            self.test_loader = DataLoader(self.testset, batch_size=1, shuffle=False, num_workers=0)
-            self.train_loader_list = init_all_dl(self.train_loader, self.batch_size, shuffle=True,
-                                                 trans=self.train_transform, database=self.database)
-            self.test_loader_list = init_all_dl(self.test_loader, self.batch_size, shuffle=False,
-                                                trans=self.test_transform, database=self.database)
-        elif self.config == 'DigestSegRatio':
-            self.trainset = DigestSegBagRatio(train_root, None, None, None)
-            self.testset = DigestSegBagRatio(test_root, None, None, None)
-            self.train_loader = DataLoader(self.trainset, batch_size=1, shuffle=True, num_workers=0)
-            self.test_loader = DataLoader(self.testset, batch_size=1, shuffle=False, num_workers=0)
-            self.train_loader_list = []
-            self.test_loader_list = []
+        # if self.config == 'DigestSegAMIL' or self.config == 'DigestSegMaxPool' or self.config == 'DigestSegMeanPool':
+        #     self.trainset = DigestSegBag(train_root, None, None, None)
+        #     self.testset = DigestSegBag(test_root, None, None, None)
+        #     self.train_loader = DataLoader(self.trainset, batch_size=1, shuffle=True, num_workers=0)
+        #     self.test_loader = DataLoader(self.testset, batch_size=1, shuffle=False, num_workers=0)
+        #     self.train_loader_list = init_all_dl(self.train_loader, self.batch_size, shuffle=True,
+        #                                          trans=self.train_transform, database=self.database)
+        #     self.test_loader_list = init_all_dl(self.test_loader, self.batch_size, shuffle=False,
+        #                                         trans=self.test_transform, database=self.database)
+        # elif self.config == 'DigestSegRNN' or self.config == 'DigestSegTwostage':  # fixed_len to k
+        #     self.trainset = DigestSegBag(train_root, None, None, None, bag_len_thres=self.bag_len_thres)
+        #     self.testset = DigestSegBag(test_root, None, None, None, bag_len_thres=self.bag_len_thres)
+        #     self.train_loader = DataLoader(self.trainset, batch_size=1, shuffle=True, num_workers=0)
+        #     self.test_loader = DataLoader(self.testset, batch_size=1, shuffle=False, num_workers=0)
+        #     self.train_loader_list = init_all_dl(self.train_loader, self.batch_size, shuffle=True,
+        #                                          trans=self.train_transform, database=self.database)
+        #     self.test_loader_list = init_all_dl(self.test_loader, self.batch_size, shuffle=False,
+        #                                         trans=self.test_transform, database=self.database)
+        # elif self.config == 'DigestSegRatio':
+        #     self.trainset = DigestSegBagRatio(train_root, None, None, None)
+        #     self.testset = DigestSegBagRatio(test_root, None, None, None)
+        #     self.train_loader = DataLoader(self.trainset, batch_size=1, shuffle=True, num_workers=0)
+        #     self.test_loader = DataLoader(self.testset, batch_size=1, shuffle=False, num_workers=0)
+        #     self.train_loader_list = []
+        #     self.test_loader_list = []
             # self.train_loader_list = init_pn_dl(self.train_loader, self.batch_size, shuffle=True,
             #                                      trans=self.train_transform, database=self.database)
             # self.test_loader_list = init_all_dl(self.test_loader, self.batch_size, shuffle=False,
@@ -239,36 +189,36 @@ class Config(object):
         #     self.test_loader = DataLoader(self.testset, self.batch_size, shuffle=False, num_workers=self.workers)
         #     self.train_loader_list = []
         #     self.test_loader_list = []
-        elif self.config == 'DigestSegCASSL':
-            self.trainset = DigestSeg(train_root, self.train_transform, None, None, database=self.database)
-            self.min_ratios = self.trainset.min_ratios
-            self.mean_ratios = self.trainset.mean_ratios
-            self.testset = DigestSeg(test_root, self.test_transform, None, None, database=self.database)
-            self.train_loader = DataLoader(self.trainset, self.batch_size, shuffle=True, num_workers=self.workers)
-            self.test_loader = DataLoader(self.testset, self.batch_size, shuffle=False, num_workers=self.workers)
-            self.train_loader_list = []
-            self.test_loader_list = []
-        elif self.config == 'DigestSegCamelyon':  # instance dataloader
-            self.trainset = Camelyon(train_root, self.train_transform_C, None, None, database=self.database, train=True)
-            self.min_ratios = self.trainset.min_ratios
-            self.mean_ratios = self.trainset.mean_ratios
-            test_root = os.path.join(self.data_root, "validation")
-            self.testset = Camelyon(test_root, self.test_transform_C, None, None, database=self.database, train=False)
-            self.train_loader = DataLoader(self.trainset, self.batch_size, shuffle=True, num_workers=self.workers)
-            self.test_loader = DataLoader(self.testset, self.batch_size, shuffle=False, num_workers=self.workers)
-            self.train_loader_list = []
-            self.test_loader_list = []
-        else:  # instance dataloader
-            self.trainset = DigestSeg(train_root, self.train_transform, None, None, database=self.database,
-                                      semi_ratio=self.semi_ratio, vis=self.vis)
-            self.min_ratios = self.trainset.min_ratios
-            self.mean_ratios = self.trainset.mean_ratios
-            self.testset = DigestSeg(test_root, self.test_transform, None, None, database=self.database
-                                     , vis=self.vis)
-            self.train_loader = DataLoader(self.trainset, self.batch_size, shuffle=True, num_workers=self.workers)
-            self.test_loader = DataLoader(self.testset, self.batch_size, shuffle=False, num_workers=self.workers)
-            self.train_loader_list = []
-            self.test_loader_list = []
+        # elif self.config == 'DigestSegCASSL':
+        #     self.trainset = DigestSeg(train_root, self.train_transform, None, None, database=self.database)
+        #     self.min_ratios = self.trainset.min_ratios
+        #     self.mean_ratios = self.trainset.mean_ratios
+        #     self.testset = DigestSeg(test_root, self.test_transform, None, None, database=self.database)
+        #     self.train_loader = DataLoader(self.trainset, self.batch_size, shuffle=True, num_workers=self.workers)
+        #     self.test_loader = DataLoader(self.testset, self.batch_size, shuffle=False, num_workers=self.workers)
+        #     self.train_loader_list = []
+        #     self.test_loader_list = []
+        # elif self.config == 'DigestSegCamelyon':  # instance dataloader
+        #     self.trainset = Camelyon(train_root, self.train_transform_C, None, None, database=self.database, train=True)
+        #     self.min_ratios = self.trainset.min_ratios
+        #     self.mean_ratios = self.trainset.mean_ratios
+        #     test_root = os.path.join(self.data_root, "validation")
+        #     self.testset = Camelyon(test_root, self.test_transform_C, None, None, database=self.database, train=False)
+        #     self.train_loader = DataLoader(self.trainset, self.batch_size, shuffle=True, num_workers=self.workers)
+        #     self.test_loader = DataLoader(self.testset, self.batch_size, shuffle=False, num_workers=self.workers)
+        #     self.train_loader_list = []
+        #     self.test_loader_list = []
+        # else:  # instance dataloader
+        self.trainset = DigestSeg(train_root, self.train_transform, None, None, database=self.database,
+                                  semi_ratio=self.semi_ratio, vis=self.vis)
+        self.min_ratios = self.trainset.min_ratios
+        self.mean_ratios = self.trainset.mean_ratios
+        self.testset = DigestSeg(test_root, self.test_transform, None, None, database=self.database
+                                 , vis=self.vis)
+        self.train_loader = DataLoader(self.trainset, self.batch_size, shuffle=True, num_workers=self.workers)
+        self.test_loader = DataLoader(self.testset, self.batch_size, shuffle=False, num_workers=self.workers)
+        self.train_loader_list = []
+        self.test_loader_list = []
         # only for eval alone
         self.valset = DigestSeg(train_root, self.test_transform, None, None, database=self.database
                                 , vis=self.vis)
@@ -276,35 +226,35 @@ class Config(object):
 
     def build_model(self):
         ## 2. build model
-        self.old_backbone = self.build_backbone(self.backbone).to(self.device)
-        self.old_clsnet = BaseClsNet(self.old_backbone, 2).to(self.device)
+        # self.old_backbone = self.build_backbone(self.backbone).to(self.device)
+        # self.old_clsnet = BaseClsNet(self.old_backbone, 2).to(self.device)
         # backbone
         self.backbone = self.build_backbone(self.backbone).to(self.device)
         # head
-        if self.config == 'DigestSegAMIL':
-            self.clsnet = AttentionClsNet(self.backbone, 1, 128, 1).to(self.device)
-        elif self.config == 'DigestSegRNN':
-            self.clsnet = {'cls': BaseClsNet(self.backbone, 1).to(self.device),
-                           'RNN': RNN(ndims=512).to(self.device)}
-        # elif self.config == 'DigestSegAMIL':
+        # if self.config == 'DigestSegAMIL':
         #     self.clsnet = AttentionClsNet(self.backbone, 1, 128, 1).to(self.device)
-        else:  # instance/max/mean pooling
-            self.clsnet = BaseClsNet(self.backbone, 1).to(self.device)
+        # elif self.config == 'DigestSegRNN':
+        #     self.clsnet = {'cls': BaseClsNet(self.backbone, 1).to(self.device),
+        #                    'RNN': RNN(ndims=512).to(self.device)}
+        # # elif self.config == 'DigestSegAMIL':
+        # #     self.clsnet = AttentionClsNet(self.backbone, 1, 128, 1).to(self.device)
+        # else:  # instance/max/mean pooling
+        self.clsnet = BaseClsNet(self.backbone, 1).to(self.device)
 
     def build_criterion(self):
         ## 4. build loss function
-        if self.config == 'DigestSegFull':
-            print("-" * 60)
-            # self.pos_weight = (len(self.trainset.instance_real_labels) /
-            #                    (torch.stack(self.trainset.instance_real_labels).sum())
-            #                    ) ** 0.5
-            # self.criterion = BCEWithLogitsLoss(pos_weight=self.pos_weight.to(self.device))
-            self.criterion = BCEWithLogitsLoss()
-        elif self.config == 'DigestSegTOPK':
-            self.criterion = {'CE': BCEWithLogitsLoss(),
-                              'Center': CenterLoss(self.trainset.bag_num, 512)
-                              }
-        else:
+        # if self.config == 'DigestSegFull':
+        #     print("-" * 60)
+        #     # self.pos_weight = (len(self.trainset.instance_real_labels) /
+        #     #                    (torch.stack(self.trainset.instance_real_labels).sum())
+        #     #                    ) ** 0.5
+        #     # self.criterion = BCEWithLogitsLoss(pos_weight=self.pos_weight.to(self.device))
+        #     self.criterion = BCEWithLogitsLoss()
+        # elif self.config == 'DigestSegTOPK':
+        #     self.criterion = {'CE': BCEWithLogitsLoss(),
+        #                       'Center': CenterLoss(self.trainset.bag_num, 512)
+        #                       }
+        # else:
             
             # print(len(self.trainset.instance_real_labels), (torch.stack(self.trainset.instance_real_labels).sum()))
             # self.pos_weight = (len(self.trainset.instance_real_labels) /
@@ -316,7 +266,7 @@ class Config(object):
             #                                         (torch.stack(self.trainset.instance_labels)==1).sum()))
             # print(self.pos_weight)
             # self.criterion = BCEWithLogitsLoss(pos_weight=self.pos_weight.to(self.device))
-            self.criterion = BCEWithLogitsLoss()
+        self.criterion = BCEWithLogitsLoss()
         # if self.config == 'DigestSegRCE':
         #     self.pos_weight = 1 / ((self.mean_ratios - self.min_ratios) / 2 + self.min_ratios)
         #     self.criterion = BCEWithLogitsLoss(pos_weight=self.pos_weight.to(self.device))
@@ -328,27 +278,27 @@ class Config(object):
 
     def build_optimizer(self):
         ## 3. build optimizer
-        if self.config == 'DigestSegAMIL' or self.config == 'DigestSegMaxPool' or self.config == 'DigestSegMeanPool':
-            self.optimizer = optim.Adam(self.clsnet.parameters(),
-                                        lr=self.lr,
-                                        weight_decay=self.weight_decay)
-        elif self.config == 'DigestSegRNN':
-            self.optimizer = optim.Adam(self.clsnet['RNN'].parameters(),
-                                        lr=self.lr,
-                                        weight_decay=self.weight_decay)
-        elif self.config == 'DigestSegTOPK':
-            self.optimizer = optim.Adam([
-                {'params': self.backbone.parameters()},
-                {'params': self.clsnet.parameters()},
-                {'params': self.criterion['Center'].parameters()}
-            ], lr=self.lr, weight_decay=self.weight_decay)
-        else:
-            self.optimizer = optim.Adam([
-                {'params': self.backbone.parameters()},
-                {'params': self.clsnet.parameters()},
-                # {'params': self.old_backbone.parameters(), 'lr': self.lr*0.05},
-                # {'params': self.old_clsnet.parameters(), 'lr': self.lr*0.05}
-            ], lr=self.lr, weight_decay=self.weight_decay)
+        # if self.config == 'DigestSegAMIL' or self.config == 'DigestSegMaxPool' or self.config == 'DigestSegMeanPool':
+        #     self.optimizer = optim.Adam(self.clsnet.parameters(),
+        #                                 lr=self.lr,
+        #                                 weight_decay=self.weight_decay)
+        # elif self.config == 'DigestSegRNN':
+        #     self.optimizer = optim.Adam(self.clsnet['RNN'].parameters(),
+        #                                 lr=self.lr,
+        #                                 weight_decay=self.weight_decay)
+        # elif self.config == 'DigestSegTOPK':
+        #     self.optimizer = optim.Adam([
+        #         {'params': self.backbone.parameters()},
+        #         {'params': self.clsnet.parameters()},
+        #         {'params': self.criterion['Center'].parameters()}
+        #     ], lr=self.lr, weight_decay=self.weight_decay)
+        # else:
+        self.optimizer = optim.Adam([
+            {'params': self.backbone.parameters()},
+            {'params': self.clsnet.parameters()},
+            # {'params': self.old_backbone.parameters(), 'lr': self.lr*0.05},
+            # {'params': self.old_clsnet.parameters(), 'lr': self.lr*0.05}
+        ], lr=self.lr, weight_decay=self.weight_decay)
 
     def load_model_and_optimizer(self):
         ## 5. load and build trainer
@@ -374,8 +324,8 @@ class Config(object):
 
     def build_memoryBank(self):
         # 6. Build & load Memory bank
-        # two-stage MIL don't need mb, thus anyone is OK.
-        if self.config == 'DigestSeg' or self.config == 'DigestSegAMIL':
+        # two-stage MIL don't need mb, thus anyone is OK  or self.config == 'DigestSegAMIL'.
+        if self.config == 'DigestSeg':
             self.train_mmbank = SPCETensorMemoryBank(self.trainset.bag_num,
                                                      self.trainset.max_ins_num,
                                                      self.trainset.bag_lengths,
@@ -387,15 +337,13 @@ class Config(object):
                                                     self.testset.bag_lengths,
                                                     self.testset.cls_num,
                                                     0.0)
-            if self.config == 'DigestSeg':  # AMIL no loading
-                self.test_mmbank.load(os.path.join(self.logger.logdir, "test_mmbank"), self.resume)
+            # if self.config == 'DigestSeg':  # AMIL no loading
+            self.test_mmbank.load(os.path.join(self.logger.logdir, "test_mmbank"), self.resume)
 
         elif self.config == 'DigestSegRCE':
             if self.noisy:
                 self.noisy1 = random.uniform(-0.5 * self.mean_ratios, 0.5 * self.mean_ratios)
                 self.noisy2 = random.uniform(-0.5 * self.min_ratios, 0.5 * self.min_ratios + 1e-6)
-                # self.noisy1 = np.random.normal(0, 0.2, size=1)
-                # self.noisy2 = np.random.normal(0, 0.2, size=1)
                 print('mean {}, min {}'.format(self.mean_ratios, self.min_ratios))
                 self.mean_ratios = (self.mean_ratios + self.noisy1).clamp(max=1.0, min=1e-6)
                 self.min_ratios = (self.min_ratios + self.noisy2).clamp(max=self.mean_ratios, min=0)
@@ -413,10 +361,7 @@ class Config(object):
                                                    0.0)
             self.test_mmbank.load(os.path.join(self.logger.logdir, "test_mmbank"), self.resume)
 
-        elif self.config == 'DigestSegPB' or self.config == 'DigestSegEMCA' or self.config == 'DigestSegTOPK' \
-                or self.config == 'DigestSegEMCAV2'\
-                or self.config == 'DigestSegEMnocahalf' or self.config == 'DigestSegEMnocamean'\
-                or self.config == 'DigestSegGT' or self.config == 'DigestSegGM':
+        elif self.config == 'DigestSegPB' or self.config == 'DigestSegTOPK' or self.config == 'DigestSegEMCAV2':
             if self.noisy:
                 # noisy = torch.randn(self.trainset.bag_num)
                 pos_num = (np.array(self.trainset.bag_pos_ratios)>0).sum()
@@ -443,7 +388,7 @@ class Config(object):
             self.test_mmbank = PBTensorMemoryBank(self.testset.bag_num,
                                                   self.testset.max_ins_num,
                                                   self.testset.bag_lengths,
-                                                  self.trainset.cls_num,
+                                                  self.testset.cls_num,
                                                   0.0,
                                                   self.testset.instance_in_which_bag,
                                                   self.testset.instance_in_where,
@@ -457,6 +402,7 @@ class Config(object):
             self.train_mmbank = CaliTensorMemoryBank(self.trainset.bag_num,
                                                      self.trainset.max_ins_num,
                                                      self.trainset.bag_lengths,
+                                                     self.trainset.cls_num,
                                                      self.mmt,
                                                      self.ignore_ratio,
                                                      self.stop_epoch)
@@ -464,6 +410,7 @@ class Config(object):
             self.test_mmbank = CaliTensorMemoryBank(self.testset.bag_num,
                                                     self.testset.max_ins_num,
                                                     self.testset.bag_lengths,
+                                                    self.testset.cls_num,
                                                     0.0)
             self.test_mmbank.load(os.path.join(self.logger.logdir, "test_mmbank"), self.resume)
 
@@ -472,7 +419,7 @@ class Config(object):
         self.trainer = BaseTrainer(self.backbone, self.clsnet, self.optimizer, self.lrsch, self.criterion,
                                    self.train_loader, self.trainset, self.train_loader_list, self.valset, self.val_loader,
                                    self.train_mmbank, self.save_interval,
-                                   self.logger, self.config, self.old_backbone, self.old_clsnet)
+                                   self.logger, self.config)
         self.tester = BaseTester(self.backbone, self.clsnet, self.test_loader, self.testset, self.test_loader_list,
                                  self.test_mmbank, self.logger)
     @classmethod

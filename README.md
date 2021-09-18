@@ -109,7 +109,7 @@ python main.py --task Pascal --config DigestSegEMCAV2 \
 
 The reproduced methods by ourselves including **Oracle**, **RCEMIL**, **PatchCNN**, **SemiMIL**, **SimpleMIL** and **Top-kMIL**. To run these methods, you should choose the corresponding configs.
 
-To run the Oracle **model** on **DigestPath**:
+To run the **Oracle** model on **DigestPath**:
 
 ```python
 python main.py  --task DigestSeg --config DigestSegFull \
@@ -140,6 +140,15 @@ To  run the **SemiMIL** model on **DigestPath**:
 
 ```python
 python main.py  --task DigestSeg --config  DigestSemi \
+		--log_dir  [your logging folder] \  
+	        --data_root  [your data root folder] \
+		--workers 8 --semi_ratio 0.5
+```
+
+To  run the **SimpleMIL** model on **DigestPath**:
+
+```python
+python main.py  --task DigestSeg --config  DigestSeg \
 		--log_dir  [your logging folder] \  
 	        --data_root  [your data root folder] \
 		--workers 8 --semi_ratio 0.5

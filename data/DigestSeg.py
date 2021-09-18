@@ -306,19 +306,19 @@ class DigestSeg(Dataset):
             neg_path = os.path.join(self.root, "neg")
             return [pos_path, neg_path]
 
-    def generate_new_data(self, selected_idx):
+    def generate_new_data(self, selected_idx,  new_labels=None, weight=None):
         idx_matrix = torch.nonzero(selected_idx).cpu().numpy()
         bag_accumulated_length = np.cumsum(np.array(self.bag_lengths))
         bag_accumulated_length = np.insert(bag_accumulated_length, 0, 0)
         # idx_matrix: [N,2]
         ins_idx_vec = bag_accumulated_length[idx_matrix[:, 0]] + idx_matrix[:, 1]
         # ins_idx_vec: [N]
-        self.tmp_instance_paths = np.array(self.instance_paths)[ins_idx_vec]
-        self.tmp_instance_in_which_bag = np.array(self.instance_in_which_bag)[ins_idx_vec]
-        self.tmp_instance_in_where = np.array(self.instance_in_where)[ins_idx_vec]
-        self.tmp_instance_labels = np.array(self.instance_labels)[ins_idx_vec]
-        self.tmp_instance_real_labels = np.array(self.instance_real_labels)[ins_idx_vec]
-        print('The Topk-K ACC of Pos is {}'.format(self.tmp_instance_real_labels.sum() / self.tmp_instance_labels.sum()))
+        self.tmp_instance_paths = np.array(self.instance_paths)[ins_idx_vec].tolist()
+        self.tmp_instance_in_which_bag = np.array(self.instance_in_which_bag)[ins_idx_vec].tolist()
+        self.tmp_instance_in_where = np.array(self.instance_in_where)[ins_idx_vec].tolist()
+        self.tmp_instance_labels = [self.instance_labels[i] for i in ins_idx_vec]
+        self.tmp_instance_real_labels = [self.instance_real_labels[i] for i in ins_idx_vec]
+        # print('The Topk-K ACC of Pos is {}'.format(self.tmp_instance_real_labels.sum() / self.tmp_instance_labels.sum()))
 
     def __getitem__(self, idx):
         """
