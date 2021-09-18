@@ -151,7 +151,7 @@ To  run the **SimpleMIL** model on **DigestPath**:
 python main.py  --task DigestSeg --config  DigestSeg \
 		--log_dir  [your logging folder] \  
 	        --data_root  [your data root folder] \
-		--workers 8 --semi_ratio 0.5
+		--workers 8 
 ```
 
 To  run the **Top-kMIL** model on **DigestPath**:
