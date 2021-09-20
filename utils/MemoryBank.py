@@ -526,13 +526,14 @@ class PBTensorMemoryBank(TensorMemoryBank):
         # selected_idx[self.dictionary == -1] = 0
         selectd_idx_tensor = torch.zeros_like(self.dictionary)
         for i in range(self.dictionary.shape[2]):
-            _, idx = torch.topk(self.dictionary[:,:,i], k=25, dim=1)
+            _, idx = torch.topk(self.dictionary[:,:,i], k=50, dim=1)
             selected_idx = torch.zeros_like(self.dictionary[:,:,i]).cuda()
             # selected_idx[idx] = 1
             selected_idx.scatter_(1, idx, 1)
-            if (self.dictionary == -1).sum() != 0 :
-                selected_idx[self.dictionary == -1] = 0
-            selected_idx[bag_labels[:, i] == 0] = 0
+            if (self.dictionary[:,:,i] == -1).sum() != 0 :
+                selected_idx[self.dictionary[:,:,i] == -1] = 0
+            if self.dictionary.shape[2] != 1: # for multi-label
+                selected_idx[bag_labels[:, i] == 0] = 0
             selectd_idx_tensor[:,:,i] = selected_idx
         selected_idx = (torch.sum(selectd_idx_tensor,2)>0).int()
         return selected_idx

@@ -139,11 +139,11 @@ if __name__=='__main__':
             trainer.causalconcat_full(epoch, configs)
             tester.causalconcat_full(configs.batch_size)
             tester.evaluate()
-        elif configs.config == 'NctcrcFull':
-            trainer.train_full_nct(epoch, configs)
-            if (epoch + 1) % 10 == 0:
-
-                tester.test_nct()
+        # elif configs.config == 'NctcrcFull':
+        #     trainer.train_full_nct(epoch, configs)
+        #     if (epoch + 1) % 10 == 0:
+        #
+        #         tester.test_nct()
         elif configs.config == 'DigestSemi':
             trainer.train_semi(epoch, configs)
             if (epoch + 1) % 10 == 0:
@@ -177,29 +177,29 @@ if __name__=='__main__':
                 tester.inference(configs.batch_size)
                 tester.evaluate()
 
-        elif configs.config == 'DigestSegAMIL':
-            trainer.train_AMIL()
-            tester.inference_twostage()
-        elif configs.config == 'DigestSegRNN':
-            trainer.train_RNN(epoch, configs.batch_size)
-            tester.test_RNN(configs.batch_size)
-        elif configs.config == 'DigestSegMaxPool':
-            trainer.train_nonparametric_pool('max', configs.batch_size)
-            tester.test_nonparametric_pool('max')
-        elif configs.config == 'DigestSegMeanPool':
-            trainer.train_nonparametric_pool('mean', configs.batch_size)
-            tester.test_nonparametric_pool('mean')
-
-        elif configs.config == 'DigestSegRatio':
-            trainer.train_ratio(epoch, configs.train_transform, configs.database)
-            tester.inference_ratio(configs.test_transform, configs.database)
-        elif configs.config == 'DigestSegCASSL':
-            trainer.train(epoch)
-            tester.inference(configs.batch_size)
-            tester.evaluate()
-        elif configs.config == 'BagDis':
-            print('Here full')
-            trainer.train_bagdis(epoch, configs)
+        # elif configs.config == 'DigestSegAMIL':
+        #     trainer.train_AMIL()
+        #     tester.inference_twostage()
+        # elif configs.config == 'DigestSegRNN':
+        #     trainer.train_RNN(epoch, configs.batch_size)
+        #     tester.test_RNN(configs.batch_size)
+        # elif configs.config == 'DigestSegMaxPool':
+        #     trainer.train_nonparametric_pool('max', configs.batch_size)
+        #     tester.test_nonparametric_pool('max')
+        # elif configs.config == 'DigestSegMeanPool':
+        #     trainer.train_nonparametric_pool('mean', configs.batch_size)
+        #     tester.test_nonparametric_pool('mean')
+        #
+        # elif configs.config == 'DigestSegRatio':
+        #     trainer.train_ratio(epoch, configs.train_transform, configs.database)
+        #     tester.inference_ratio(configs.test_transform, configs.database)
+        # elif configs.config == 'DigestSegCASSL':
+        #     trainer.train(epoch)
+        #     tester.inference(configs.batch_size)
+        #     tester.evaluate()
+        # elif configs.config == 'BagDis':
+        #     print('Here full')
+        #     trainer.train_bagdis(epoch, configs)
         else:
             raise NotImplementedError
 
