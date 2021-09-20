@@ -1,25 +1,12 @@
 #!/usr/bin/env
 # -*- coding: utf-8 -*-
 '''
-Copyright (c) 2019 gyfastas
+Copyright (c) 2021 HHHedo
 '''
 from __future__ import absolute_import
-import os
-from tqdm import tqdm
-import torch
-# torch.multiprocessing.set_sharing_strategy('file_system')
-import torch.nn.functional as F
-import utils.utility as utility
-from utils.logger import Logger
-from torchvision.models import resnet18
-from data.Camelyon import Camelyon
 import argparse
 from importlib import import_module
 from utils.utility import adjust_learning_rate
-import ssl
-import os
-# os.environ["CUDA_VISIBLE_DEVICES"] = "0"
-# ssl._create_default_https_context = ssl._create_unverified_context
 def parse_args():
     parser = argparse.ArgumentParser(description='317 MIL Framework')
     parser.add_argument("--task", type=str, default="DigestSeg",
@@ -69,11 +56,7 @@ def parse_args():
     parser.add_argument("--mmt", type=float, default=0, help="mmt")
     parser.add_argument("--noisy", action="store_true", default=False, help="Noisy bag pos ratio")
 
-    # ssl
-    # parser.add_argument("--ssl", action="store_true", default=False, help="Self supervised learning")
-    # parser.add_argument("--camelyon", action="store_true", default=False, help="Training on camelyon")
-    # parser.add_argument("--pickle", action="store_true", default=False, help="Using pickle")
-    #semi
+
     parser.add_argument("--semi_ratio", type=float, default=None, help="semi")
     # args = parser.parse_args(['-lr', '1e-3'])
     parser.add_argument("--target_cls", type=str,
@@ -83,40 +66,15 @@ def parse_args():
     return args
 
 if __name__=='__main__':
-    # res = resnet18()
     args = parse_args()
     if args.task == 'DigestSeg':
         configs = getattr(import_module('configs.'+'DigestSeg'), 'Config')(args)
-    # elif args.task == 'DigestSegNoCrop':
-    #     configs = getattr(import_module('configs.' + 'DigestSegNoCrop'), 'Config')(args)
-    # elif args.task == 'DigestSegNoFlip':
-    #     configs = getattr(import_module('configs.' + 'DigestSegNoFlip'), 'Config')(args)
-    # elif args.task == 'DigestSegNoGau':
-    #     configs = getattr(import_module('configs.' + 'DigestSegNoGau'), 'Config')(args)
-    # elif args.task == 'DigestSegNoGray':
-    #     configs = getattr(import_module('configs.' + 'DigestSegNoGray'), 'Config')(args)
-    # elif args.task == 'DigestSegNojitter':
-    #     configs = getattr(import_module('configs.' + 'DigestSegNojitter'), 'Config')(args)
-    # elif args.task == 'DigestSegNoall':
-    #     configs = getattr(import_module('configs.' + 'DigestSegNoall'), 'Config')(args)
     elif args.task == 'DigestSegRot':
         configs = getattr(import_module('configs.' + 'DigestSegRot'), 'Config')(args)
     elif args.task == 'Camelyon':
-        print('HI.............')
         configs = getattr(import_module('configs.' + 'Camelyon'), 'Config')(args)
     elif args.task == 'CamelyonNorAug':
-        print('HI.............')
         configs = getattr(import_module('configs.' + 'CamelyonNorAug'), 'Config')(args)
-    # elif args.task == 'Nctcrc':
-    #
-    #     configs = getattr(import_module('configs.' + 'Nctcrc'), 'Config')(args)
-    # elif args.task == 'CausalDigest':
-    #     configs = getattr(import_module('configs.'+'CausalDigest'), 'Config')(args)
-    # elif args.task == 'CausalConcat':
-    #     configs = getattr(import_module('configs.'+'CausalConcat'), 'Config')(args)
-    # elif args.task == 'BagDis':
-    #     configs = getattr(import_module('configs.'+'BagDis'), 'Config')(args)
-
     elif args.task == 'Pascal':
         configs = getattr(import_module('configs.' + 'Pascal'), 'Config')(args)
     elif args.task == 'Pascal_nor':
@@ -139,11 +97,6 @@ if __name__=='__main__':
             trainer.causalconcat_full(epoch, configs)
             tester.causalconcat_full(configs.batch_size)
             tester.evaluate()
-        # elif configs.config == 'NctcrcFull':
-        #     trainer.train_full_nct(epoch, configs)
-        #     if (epoch + 1) % 10 == 0:
-        #
-        #         tester.test_nct()
         elif configs.config == 'DigestSemi':
             trainer.train_semi(epoch, configs)
             if (epoch + 1) % 10 == 0:
@@ -176,43 +129,5 @@ if __name__=='__main__':
             if (epoch + 1) % 10 == 0:
                 tester.inference(configs.batch_size)
                 tester.evaluate()
-
-        # elif configs.config == 'DigestSegAMIL':
-        #     trainer.train_AMIL()
-        #     tester.inference_twostage()
-        # elif configs.config == 'DigestSegRNN':
-        #     trainer.train_RNN(epoch, configs.batch_size)
-        #     tester.test_RNN(configs.batch_size)
-        # elif configs.config == 'DigestSegMaxPool':
-        #     trainer.train_nonparametric_pool('max', configs.batch_size)
-        #     tester.test_nonparametric_pool('max')
-        # elif configs.config == 'DigestSegMeanPool':
-        #     trainer.train_nonparametric_pool('mean', configs.batch_size)
-        #     tester.test_nonparametric_pool('mean')
-        #
-        # elif configs.config == 'DigestSegRatio':
-        #     trainer.train_ratio(epoch, configs.train_transform, configs.database)
-        #     tester.inference_ratio(configs.test_transform, configs.database)
-        # elif configs.config == 'DigestSegCASSL':
-        #     trainer.train(epoch)
-        #     tester.inference(configs.batch_size)
-        #     tester.evaluate()
-        # elif configs.config == 'BagDis':
-        #     print('Here full')
-        #     trainer.train_bagdis(epoch, configs)
         else:
             raise NotImplementedError
-
-    # for epoch in range(configs.logger.global_step, configs.epochs):
-    #     adjust_learning_rate(configs.optimizer, epoch, args)
-    #     trainer.train(epoch)
-    # tester.inference()
-    # tester.evaluate()
-    # for i in range(1, 11):
-    #fig 2 local
-    # trainer.eval(8, configs.valset)
-    # trainer.eval_catplot(2, configs.testset)
-    # tester.eval_(50, configs.testset)
-    # configs = getattr(import_module('configs.' + 'camelyontest'), 'Config')(args)
-    # tester = configs.tester
-    # tester.test_instance()

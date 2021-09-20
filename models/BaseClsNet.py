@@ -1,7 +1,7 @@
 #!/usr/bin/env
 # -*- coding: utf-8 -*-
 '''
-Copyright (c) 2019 gyfastas
+Copyright (c) 2021 HHHedo
 '''
 import torch
 import torch.nn.functional as F

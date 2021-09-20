@@ -416,7 +416,7 @@ class Config(object):
 
     def build_runner(self):
         # 7. Buil trainer and tester
-        self.trainer = BaseTrainer(self.backbone, self.clsnet, self.optimizer, self.lrsch, self.criterion,
+        self.trainer = BaseTrainer(self.backbone, self.clsnet, self.optimizer, self.criterion,
                                    self.train_loader, self.trainset, self.train_loader_list, self.valset, self.val_loader,
                                    self.train_mmbank, self.save_interval,
                                    self.logger, self.config)
